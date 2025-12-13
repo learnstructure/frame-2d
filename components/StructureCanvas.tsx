@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { StructureModel, SupportType, LoadType, AnalysisResults } from '../frame/types';
-import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Activity } from 'lucide-react';
+import { subscribeToAnalysisCount } from '../services/firebase';
 
 interface StructureCanvasProps {
   model: StructureModel;
@@ -13,6 +14,15 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
+  const [globalAnalysisCount, setGlobalAnalysisCount] = useState<number | null>(null);
+
+  // Subscribe to analysis count
+  useEffect(() => {
+    const unsubscribe = subscribeToAnalysisCount((count) => {
+      setGlobalAnalysisCount(count);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const centerStructure = () => {
     if (model.nodes.length === 0 || !containerRef.current) return;
@@ -403,6 +413,19 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
         {model.nodes.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <h1 className="text-8xl font-black text-slate-800 tracking-tighter select-none">STRUCTURE REALM</h1>
+          </div>
+        )}
+
+        {/* Global Analysis Count */}
+        {globalAnalysisCount !== null && (
+          <div className="absolute bottom-6 left-6 bg-slate-900/80 border border-slate-700 px-4 py-2 rounded-lg flex items-center gap-3 shadow-lg pointer-events-none z-10 backdrop-blur-sm">
+            <div className="p-1.5 bg-emerald-500/10 rounded-full">
+              <Activity size={16} className="text-emerald-400" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Analyses Run</span>
+              <span className="text-lg font-mono font-bold text-white leading-none">{globalAnalysisCount.toLocaleString()}</span>
+            </div>
           </div>
         )}
 

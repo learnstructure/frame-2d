@@ -6,6 +6,7 @@ import ChatModal from './components/ChatModal';
 import { StructureModel, AnalysisResults } from './frame/types';
 import { analyzeStructure } from './frame/solver';
 import { generateReport } from './services/reportGenerator';
+import { incrementAnalysisCount } from './services/firebase';
 import html2canvas from 'html2canvas';
 
 const App = () => {
@@ -21,7 +22,12 @@ const App = () => {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
+  // Validation for enabling analysis
+  const canAnalyze = model.members.length > 0 && model.supports.length > 0;
+
   const handleAnalyze = () => {
+    if (!canAnalyze) return;
+
     // Run the local solver
     const results = analyzeStructure(model);
     setAnalysisResults(results);
@@ -29,6 +35,9 @@ const App = () => {
     // Optional: Alert if unstable, or let the canvas visualizer handle it
     if (!results.isStable) {
       alert(`Analysis Failed: ${results.message}`);
+    } else {
+      // Track successful analysis in Firestore
+      incrementAnalysisCount();
     }
   };
 
@@ -93,9 +102,14 @@ const App = () => {
         <div className="flex items-center gap-4">
           <button
             onClick={handleAnalyze}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-semibold flex items-center gap-2 transition-all shadow-lg hover:shadow-emerald-900/50 active:translate-y-0.5"
+            disabled={!canAnalyze}
+            title={!canAnalyze ? "Add at least one member and one support to analyze" : "Run Structural Analysis"}
+            className={`px-4 py-2 rounded font-semibold flex items-center gap-2 transition-all ${canAnalyze
+                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-900/50 active:translate-y-0.5"
+                : "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed opacity-50 shadow-none"
+              }`}
           >
-            <Play size={18} fill="currentColor" /> Analyze
+            <Play size={18} fill={canAnalyze ? "currentColor" : "none"} /> Analyze
           </button>
           <button
             onClick={handleReport}
