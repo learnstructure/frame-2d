@@ -382,8 +382,9 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-[#0f172a]">
       <div
+        id="structure-canvas-container"
         ref={containerRef}
-        className="flex-1 relative overflow-hidden cursor-crosshair"
+        className="flex-1 relative overflow-hidden cursor-crosshair bg-[#0f172a]"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

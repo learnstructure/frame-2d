@@ -529,6 +529,8 @@ export const analyzeStructure = (model: StructureModel): AnalysisResults => {
             displacements,
             reactions,
             memberForces,
+            stiffnessMatrix: structure.K,
+            reducedStiffnessMatrix: structure.K_reduced,
             isStable: true,
             message: "Analysis Completed Successfully"
         };

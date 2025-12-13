@@ -64,6 +64,8 @@ export interface AnalysisResults {
       end: { fx: number; fy: number; moment: number };
     }
   };
+  stiffnessMatrix?: number[][];
+  reducedStiffnessMatrix?: number[][];
   isStable: boolean;
   message: string;
 }
