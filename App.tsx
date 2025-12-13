@@ -19,6 +19,7 @@ const App = () => {
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   const handleAnalyze = () => {
     // Run the local solver
@@ -44,7 +45,8 @@ const App = () => {
       let imageUri = undefined;
 
       if (element) {
-        const canvas = await html2canvas(element, { backgroundColor: '#0f172a' }); // Use dark bg
+        // @ts-ignore - backgroundColor is valid in runtime but types might conflict
+        const canvas = await html2canvas(element, { backgroundColor: '#0f172a' } as any);
         imageUri = canvas.toDataURL('image/png');
       }
 
@@ -70,16 +72,18 @@ const App = () => {
         <div className="flex items-center gap-3">
           {/* Logo Image - Place your image file named 'logo.png' in the public folder */}
           <div className="p-1 rounded-lg shadow-lg shadow-blue-900/20 bg-white/5 border border-white/10">
-            <img
-              src="/logo.png"
-              alt="StructureRealm Logo"
-              className="w-8 h-8 object-contain"
-              onError={(e) => {
-                // Fallback if image is missing
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.parentElement!.innerHTML = '<div class="w-8 h-8 flex items-center justify-center text-xs text-slate-500">IMG</div>';
-              }}
-            />
+            {!logoError ? (
+              <img
+                src="/logo.png"
+                alt="StructureRealm Logo"
+                className="w-8 h-8 object-contain"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-blue-600 to-emerald-600 rounded text-[10px] font-bold text-white shadow-inner">
+                SR
+              </div>
+            )}
           </div>
           <h1 className="text-2xl font-bold">
             <span className="text-blue-400">Structure</span><span className="text-emerald-400">Realm</span>

@@ -22,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
     a: 10,
     i: 50,
     k: 100,
-    type: 'rigid' as MemberType
+    type: 'beam' as MemberType
   });
   const [tempSupport, setTempSupport] = useState({ nodeId: '', type: SupportType.PIN });
 
@@ -94,7 +94,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
       newMember.eModulus = Number(tempMember.e);
       newMember.area = Number(tempMember.a);
     } else {
-      // Rigid
+      // Beam
       newMember.eModulus = Number(tempMember.e);
       newMember.area = Number(tempMember.a);
       newMember.momentInertia = Number(tempMember.i);
@@ -163,12 +163,8 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
   );
 
   const getMemberTypeLabel = (type: string) => {
-    switch (type) {
-      case 'rigid': return 'Beam';
-      case 'truss': return 'Truss';
-      case 'spring': return 'Spring';
-      default: return type;
-    }
+    // Capitalize first letter
+    return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
   return (
@@ -248,7 +244,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
                 onChange={(e) => setTempMember({ ...tempMember, type: e.target.value as MemberType })}
                 className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none"
               >
-                <option value="rigid">Beam</option>
+                <option value="beam">Beam</option>
                 <option value="truss">Truss</option>
                 <option value="spring">Spring</option>
               </select>
@@ -312,7 +308,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
                       className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm outline-none focus:border-cyan-500"
                     />
                   </div>
-                  {tempMember.type === 'rigid' && (
+                  {tempMember.type === 'beam' && (
                     <div className="space-y-1 col-span-2">
                       <label className="text-xs text-slate-400">I (Inertia)</label>
                       <input
