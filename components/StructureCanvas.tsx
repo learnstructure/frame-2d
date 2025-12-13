@@ -35,7 +35,8 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
       (width * 0.8) / contentWidth,
       (height * 0.8) / contentHeight
     );
-    const finalScale = Math.max(20, Math.min(newScale, 150));
+    // Allow scaling down for large structures (min 0.1 instead of 20)
+    const finalScale = Math.max(0.1, Math.min(newScale, 150));
     setScale(finalScale);
 
     const cx = (minX + maxX) / 2;
@@ -84,10 +85,23 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
     const p1 = toScreen(start.x, start.y);
     const p2 = toScreen(end.x, end.y);
 
+    // Calculate label positioning
+    const midX = (p1.x + p2.x) / 2;
+    const midY = (p1.y + p2.y) / 2;
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+
+    // Determine orientation for label placement: "more vertical" if dy > dx
+    const isVertical = Math.abs(dy) > Math.abs(dx);
+
+    // If vertical, place to the right (x + 10). If horizontal, place above (y - 10).
+    const labelX = isVertical ? midX + 10 : midX;
+    const labelY = isVertical ? midY : midY - 10;
+    const textAnchor = isVertical ? "start" : "middle";
+    const dominantBaseline = isVertical ? "middle" : "auto";
+
     if (member.type === 'spring') {
       // Draw zigzag
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
       const length = Math.sqrt(dx * dx + dy * dy);
       const unitX = dx / length;
       const unitY = dy / length;
@@ -114,7 +128,14 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
       return (
         <g key={member.id}>
           <path d={d} stroke="#a3e635" strokeWidth="2" fill="none" />
-          <text x={(p1.x + p2.x) / 2} y={(p1.y + p2.y) / 2 - 10} fill="#a3e635" fontSize="10" textAnchor="middle">k={member.springConstant}</text>
+          <text
+            x={labelX}
+            y={labelY}
+            fill="#a3e635"
+            fontSize="10"
+            textAnchor={textAnchor}
+            dominantBaseline={dominantBaseline}
+          >k={member.springConstant}</text>
         </g>
       );
     }
@@ -132,7 +153,14 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
           strokeDasharray={member.type === 'truss' ? '4' : '0'}
           className="drop-shadow-lg"
         />
-        <text x={(p1.x + p2.x) / 2} y={(p1.y + p2.y) / 2 - 10} fill="#94a3b8" fontSize="10" textAnchor="middle">{member.id}</text>
+        <text
+          x={labelX}
+          y={labelY}
+          fill="#94a3b8"
+          fontSize="10"
+          textAnchor={textAnchor}
+          dominantBaseline={dominantBaseline}
+        >{member.id}</text>
       </g>
     );
   };
@@ -282,245 +310,292 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
       if (!node) continue;
 
       const p = toScreen(node.x, node.y);
-      const color = "#4ade80"; // Green for reactions
 
-      // FX Reaction
-      if (Math.abs(rxn.fx) > 0.001) {
-        const len = 35;
-        const isRight = rxn.fx > 0;
-        // If Rx > 0, arrow points Right. Tail is Left.
-        const tailX = isRight ? p.x - len : p.x + len;
+      // Remove 'n' prefix for cleaner display (e.g. n1 -> 1)
+      const displayId = nodeId.replace(/^n/, '');
 
-        elements.push(
-          <g key={`rx-${nodeId}`}>
-            <line x1={tailX} y1={p.y} x2={p.x} y2={p.y} stroke={color} strokeWidth="2" markerEnd="url(#arrowhead-green)" />
-            <text x={tailX} y={p.y - 5} fill={color} fontSize="11" fontWeight="bold">
-              {rxn.fx.toFixed(2)}
+      // Generate text lines objects
+      const lines = [];
+      if (Math.abs(rxn.fx) > 0.001) lines.push({ prefix: 'R', sub: `${displayId}x`, val: rxn.fx.toFixed(2) });
+      if (Math.abs(rxn.fy) > 0.001) lines.push({ prefix: 'R', sub: `${displayId}y`, val: rxn.fy.toFixed(2) });
+      if (Math.abs(rxn.moment) > 0.001) lines.push({ prefix: 'M', sub: `${displayId}`, val: rxn.moment.toFixed(2) });
+
+      if (lines.length === 0) continue;
+
+      // Box styling parameters - Increased line height and padding
+      const lineHeight = 18;
+      const paddingX = 10;
+      const paddingY = 8;
+      const fontSize = 11;
+
+      // Estimate width (approx 7px per char for monospace 11px)
+      const maxLen = Math.max(...lines.map(l => l.prefix.length + l.sub.length + 3 + l.val.length));
+      const boxWidth = maxLen * 7 + paddingX * 2;
+      const boxHeight = lines.length * lineHeight + paddingY * 1.5;
+
+      // Position below the support (assuming support is drawn around node y)
+      // Fixed supports extend down, so we push it down a bit more (e.g., 25px offset)
+      const boxX = p.x - boxWidth / 2;
+      const boxY = p.y + 25;
+
+      elements.push(
+        <g key={`rxn-${nodeId}`}>
+          {/* Connecting line (optional, but helps visual association) */}
+          <line x1={p.x} y1={p.y + 10} x2={p.x} y2={boxY} stroke="#4ade80" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.5" />
+
+          {/* Box Background */}
+          <rect
+            x={boxX}
+            y={boxY}
+            width={boxWidth}
+            height={boxHeight}
+            rx="4"
+            fill="rgba(15, 23, 42, 0.95)"
+            stroke="#4ade80"
+            strokeWidth="1"
+            className="shadow-sm"
+          />
+
+          {/* Text Lines */}
+          {lines.map((line, i) => (
+            <text
+              key={i}
+              x={p.x}
+              y={boxY + paddingY + (i * lineHeight) + fontSize - 2}
+              fill="#4ade80"
+              fontSize={fontSize}
+              fontFamily="monospace"
+              fontWeight="bold"
+              textAnchor="middle"
+            >
+              {line.prefix}
+              <tspan baselineShift="sub" fontSize="9">{line.sub}</tspan>
+              {` = ${line.val}`}
             </text>
-          </g>
-        );
-      }
-
-      // FY Reaction
-      if (Math.abs(rxn.fy) > 0.001) {
-        const len = 35;
-        const isUp = rxn.fy > 0;
-        // If Ry > 0 (Up), arrow points Up. Tail is Below (Screen Y+).
-        const tailY = isUp ? p.y + len : p.y - len;
-
-        elements.push(
-          <g key={`ry-${nodeId}`}>
-            <line x1={p.x} y1={tailY} x2={p.x} y2={p.y} stroke={color} strokeWidth="2" markerEnd="url(#arrowhead-green)" />
-            <text x={p.x + 5} y={tailY + (isUp ? 0 : 10)} fill={color} fontSize="11" fontWeight="bold">
-              {rxn.fy.toFixed(2)}
-            </text>
-          </g>
-        );
-      }
-
-      // Moment Reaction
-      if (Math.abs(rxn.moment) > 0.001) {
-        const r = 30;
-        const isCCW = rxn.moment > 0;
-        let d = "";
-        if (isCCW) d = `M ${p.x + r} ${p.y} A ${r} ${r} 0 1 0 ${p.x} ${p.y - r}`;
-        else d = `M ${p.x + r} ${p.y} A ${r} ${r} 0 1 1 ${p.x} ${p.y - r}`;
-
-        elements.push(
-          <g key={`rm-${nodeId}`}>
-            <path d={d} fill="none" stroke={color} strokeWidth="2" markerEnd="url(#arrowhead-moment-green)" />
-            <text x={p.x + r + 5} y={p.y + 10} fill={color} fontSize="11" fontWeight="bold">
-              {rxn.moment.toFixed(2)}
-            </text>
-          </g>
-        );
-      }
+          ))}
+        </g>
+      );
     }
     return <g>{elements}</g>;
   };
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 bg-[#0f172a] relative overflow-hidden cursor-crosshair"
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-    >
-      {/* Grid Background */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
-        <defs>
-          <pattern id="grid" width={scale} height={scale} patternUnits="userSpaceOnUse" x={offset.x % scale} y={offset.y % scale}>
-            <path d={`M ${scale} 0 L 0 0 0 ${scale}`} fill="none" stroke="gray" strokeWidth="0.5" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
-      </svg>
+    <div className="flex-1 flex flex-col min-w-0 bg-[#0f172a]">
+      <div
+        ref={containerRef}
+        className="flex-1 relative overflow-hidden cursor-crosshair"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
+        {/* Grid Background */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
+          <defs>
+            <pattern id="grid" width={scale} height={scale} patternUnits="userSpaceOnUse" x={offset.x % scale} y={offset.y % scale}>
+              <path d={`M ${scale} 0 L 0 0 0 ${scale}`} fill="none" stroke="gray" strokeWidth="0.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
+        </svg>
 
-      {model.nodes.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <h1 className="text-8xl font-black text-slate-800 tracking-tighter select-none">STRUCTURE REALM</h1>
-        </div>
-      )}
-
-      {analysisResults && analysisResults.isStable && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/80 border border-slate-700 px-4 py-2 rounded-full flex items-center gap-3 z-10 pointer-events-none">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-0.5 bg-sky-400"></div>
-            <span className="text-xs text-slate-400">Structure</span>
+        {model.nodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <h1 className="text-8xl font-black text-slate-800 tracking-tighter select-none">STRUCTURE REALM</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-0.5 bg-green-400"></div>
-            <span className="text-xs text-green-400 font-bold">Reactions</span>
+        )}
+
+        {/* Legend - Moved to top right */}
+        {analysisResults && analysisResults.isStable && (
+          <div className="absolute top-4 right-4 bg-slate-900/80 border border-slate-700 px-4 py-2 rounded-full flex items-center gap-3 z-10 pointer-events-none">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-0.5 bg-sky-400"></div>
+              <span className="text-xs text-slate-400">Structure</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-0.5 bg-green-400"></div>
+              <span className="text-xs text-green-400 font-bold">Reactions</span>
+            </div>
           </div>
+        )}
+
+        <svg className="w-full h-full pointer-events-none">
+          <defs>
+            <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+              <polygon points="0 0, 6 2, 0 4" fill="#ef4444" />
+            </marker>
+            <marker id="arrowhead-pink" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+              <polygon points="0 0, 6 2, 0 4" fill="#f472b6" />
+            </marker>
+            <marker id="arrowhead-moment" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+              <polygon points="0 0, 6 2, 0 4" fill="#ef4444" />
+            </marker>
+            <marker id="arrowhead-green" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+              <polygon points="0 0, 6 2, 0 4" fill="#4ade80" />
+            </marker>
+            <marker id="arrowhead-moment-green" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+              <polygon points="0 0, 6 2, 0 4" fill="#4ade80" />
+            </marker>
+          </defs>
+          <g>
+            {/* Members */}
+            {model.members.map(m => renderMember(m))}
+
+            {/* Supports */}
+            {model.supports.map(support => {
+              const node = model.nodes.find(n => n.id === support.nodeId);
+              if (!node) return null;
+              const p = toScreen(node.x, node.y);
+
+              return (
+                <g key={support.id} transform={`translate(${p.x}, ${p.y})`}>
+                  {support.type === SupportType.PIN && (
+                    <path d="M 0 0 L -8 14 L 8 14 Z" fill="#475569" stroke="#94a3b8" strokeWidth="2" />
+                  )}
+                  {support.type === SupportType.ROLLER && (
+                    <g>
+                      <path d="M 0 0 L -8 12 L 8 12 Z" fill="#475569" stroke="#94a3b8" strokeWidth="2" />
+                      <circle cx="-5" cy="16" r="3" fill="#94a3b8" />
+                      <circle cx="5" cy="16" r="3" fill="#94a3b8" />
+                    </g>
+                  )}
+                  {support.type === SupportType.FIXED && (
+                    <g>
+                      <rect x="-10" y="4" width="20" height="4" fill="#94a3b8" />
+                      <line x1="-8" y1="8" x2="-12" y2="16" stroke="#64748b" strokeWidth="1" />
+                      <line x1="0" y1="8" x2="-4" y2="16" stroke="#64748b" strokeWidth="1" />
+                      <line x1="8" y1="8" x2="4" y2="16" stroke="#64748b" strokeWidth="1" />
+                    </g>
+                  )}
+                </g>
+              );
+            })}
+
+            {/* Reactions */}
+            {renderReactions()}
+
+            {/* Member Loads */}
+            {model.loads.filter(l => l.type !== LoadType.NODAL_POINT).map(renderMemberLoad)}
+
+            {/* Nodes */}
+            {model.nodes.map(node => {
+              const p = toScreen(node.x, node.y);
+              return (
+                <g key={node.id}>
+                  <circle
+                    cx={p.x} cy={p.y}
+                    r="6"
+                    fill="#f1f5f9"
+                    stroke="#334155"
+                    strokeWidth="2"
+                  />
+                  <text x={p.x + 10} y={p.y - 10} fill="white" fontSize="12" className="font-mono">{node.id}</text>
+                </g>
+              );
+            })}
+
+            {/* Nodal Loads */}
+            {model.loads.filter(l => l.type === LoadType.NODAL_POINT).map(load => {
+              const node = model.nodes.find(n => n.id === load.nodeId);
+              if (!node) return null;
+              const p = toScreen(node.x, node.y);
+
+              const elements = [];
+
+              // 1. Draw Force X Arrow
+              if (Math.abs(load.magnitudeX) > 0.001) {
+                const isRight = load.magnitudeX > 0;
+                const len = 40;
+                const tailX = isRight ? p.x - len : p.x + len;
+                const tailY = p.y;
+
+                elements.push(
+                  <g key={`force-x-${load.id}`}>
+                    <line x1={tailX} y1={tailY} x2={p.x} y2={p.y} stroke="#ef4444" strokeWidth="2" markerEnd="url(#arrowhead)" />
+                    <text x={tailX + (isRight ? -10 : 10)} y={p.y + 4} fill="#ef4444" fontSize="10" textAnchor={isRight ? "end" : "start"} fontWeight="bold">
+                      {Math.abs(load.magnitudeX).toFixed(1)}
+                    </text>
+                  </g>
+                );
+              }
+
+              // 2. Draw Force Y Arrow
+              if (Math.abs(load.magnitudeY) > 0.001) {
+                const isUp = load.magnitudeY > 0;
+                const len = 40;
+                const tailX = p.x;
+                const tailY = isUp ? p.y + len : p.y - len;
+
+                elements.push(
+                  <g key={`force-y-${load.id}`}>
+                    <line x1={tailX} y1={tailY} x2={p.x} y2={p.y} stroke="#ef4444" strokeWidth="2" markerEnd="url(#arrowhead)" />
+                    <text x={p.x + 5} y={tailY + (isUp ? 10 : -5)} fill="#ef4444" fontSize="10" textAnchor="start" fontWeight="bold">
+                      {Math.abs(load.magnitudeY).toFixed(1)}
+                    </text>
+                  </g>
+                );
+              }
+
+              // 3. Draw Moment
+              if (load.moment && Math.abs(load.moment) > 0.001) {
+                const r = 20;
+                const isCCW = load.moment > 0;
+                let d = "";
+                if (isCCW) d = `M ${p.x + r} ${p.y} A ${r} ${r} 0 1 0 ${p.x} ${p.y - r}`;
+                else d = `M ${p.x + r} ${p.y} A ${r} ${r} 0 1 1 ${p.x} ${p.y - r}`;
+
+                elements.push(
+                  <g key={`moment-${load.id}`}>
+                    <path d={d} fill="none" stroke="#ef4444" strokeWidth="2" markerEnd="url(#arrowhead-moment)" />
+                    <text x={p.x + r + 5} y={p.y} fill="#ef4444" fontSize="11" fontWeight="bold">M={load.moment}</text>
+                  </g>
+                );
+              }
+
+              return <g key={load.id}>{elements}</g>;
+            })}
+          </g>
+        </svg>
+
+        {/* Controls */}
+        <div className="absolute bottom-6 right-6 flex flex-col gap-2 bg-slate-800 p-2 rounded-lg border border-slate-700 shadow-lg">
+          <button onClick={() => setScale(s => s * 1.2)} className="p-2 text-slate-300 hover:bg-slate-700 rounded transition"><ZoomIn size={20} /></button>
+          <button onClick={() => setScale(s => s / 1.2)} className="p-2 text-slate-300 hover:bg-slate-700 rounded transition"><ZoomOut size={20} /></button>
+          <button onClick={centerStructure} className="p-2 text-slate-300 hover:bg-slate-700 rounded transition"><Maximize size={20} /></button>
         </div>
-      )}
-
-      <svg className="w-full h-full pointer-events-none">
-        <defs>
-          <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-            <polygon points="0 0, 6 2, 0 4" fill="#ef4444" />
-          </marker>
-          <marker id="arrowhead-pink" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-            <polygon points="0 0, 6 2, 0 4" fill="#f472b6" />
-          </marker>
-          <marker id="arrowhead-moment" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-            <polygon points="0 0, 6 2, 0 4" fill="#ef4444" />
-          </marker>
-          <marker id="arrowhead-green" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-            <polygon points="0 0, 6 2, 0 4" fill="#4ade80" />
-          </marker>
-          <marker id="arrowhead-moment-green" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-            <polygon points="0 0, 6 2, 0 4" fill="#4ade80" />
-          </marker>
-        </defs>
-        <g>
-          {/* Members */}
-          {model.members.map(m => renderMember(m))}
-
-          {/* Supports */}
-          {model.supports.map(support => {
-            const node = model.nodes.find(n => n.id === support.nodeId);
-            if (!node) return null;
-            const p = toScreen(node.x, node.y);
-
-            return (
-              <g key={support.id} transform={`translate(${p.x}, ${p.y})`}>
-                {support.type === SupportType.PIN && (
-                  <path d="M 0 0 L -8 14 L 8 14 Z" fill="#475569" stroke="#94a3b8" strokeWidth="2" />
-                )}
-                {support.type === SupportType.ROLLER && (
-                  <g>
-                    <path d="M 0 0 L -8 12 L 8 12 Z" fill="#475569" stroke="#94a3b8" strokeWidth="2" />
-                    <circle cx="-5" cy="16" r="3" fill="#94a3b8" />
-                    <circle cx="5" cy="16" r="3" fill="#94a3b8" />
-                  </g>
-                )}
-                {support.type === SupportType.FIXED && (
-                  <g>
-                    <rect x="-10" y="4" width="20" height="4" fill="#94a3b8" />
-                    <line x1="-8" y1="8" x2="-12" y2="16" stroke="#64748b" strokeWidth="1" />
-                    <line x1="0" y1="8" x2="-4" y2="16" stroke="#64748b" strokeWidth="1" />
-                    <line x1="8" y1="8" x2="4" y2="16" stroke="#64748b" strokeWidth="1" />
-                  </g>
-                )}
-              </g>
-            );
-          })}
-
-          {/* Reactions */}
-          {renderReactions()}
-
-          {/* Member Loads */}
-          {model.loads.filter(l => l.type !== LoadType.NODAL_POINT).map(renderMemberLoad)}
-
-          {/* Nodes */}
-          {model.nodes.map(node => {
-            const p = toScreen(node.x, node.y);
-            return (
-              <g key={node.id}>
-                <circle
-                  cx={p.x} cy={p.y}
-                  r="6"
-                  fill="#f1f5f9"
-                  stroke="#334155"
-                  strokeWidth="2"
-                />
-                <text x={p.x + 10} y={p.y - 10} fill="white" fontSize="12" className="font-mono">{node.id}</text>
-              </g>
-            );
-          })}
-
-          {/* Nodal Loads */}
-          {model.loads.filter(l => l.type === LoadType.NODAL_POINT).map(load => {
-            const node = model.nodes.find(n => n.id === load.nodeId);
-            if (!node) return null;
-            const p = toScreen(node.x, node.y);
-
-            const elements = [];
-
-            // 1. Draw Force X Arrow
-            if (Math.abs(load.magnitudeX) > 0.001) {
-              const isRight = load.magnitudeX > 0;
-              const len = 40;
-              const tailX = isRight ? p.x - len : p.x + len;
-              const tailY = p.y;
-
-              elements.push(
-                <g key={`force-x-${load.id}`}>
-                  <line x1={tailX} y1={tailY} x2={p.x} y2={p.y} stroke="#ef4444" strokeWidth="2" markerEnd="url(#arrowhead)" />
-                  <text x={tailX + (isRight ? -10 : 10)} y={p.y + 4} fill="#ef4444" fontSize="10" textAnchor={isRight ? "end" : "start"} fontWeight="bold">
-                    {Math.abs(load.magnitudeX).toFixed(1)}
-                  </text>
-                </g>
-              );
-            }
-
-            // 2. Draw Force Y Arrow
-            if (Math.abs(load.magnitudeY) > 0.001) {
-              const isUp = load.magnitudeY > 0;
-              const len = 40;
-              const tailX = p.x;
-              const tailY = isUp ? p.y + len : p.y - len;
-
-              elements.push(
-                <g key={`force-y-${load.id}`}>
-                  <line x1={tailX} y1={tailY} x2={p.x} y2={p.y} stroke="#ef4444" strokeWidth="2" markerEnd="url(#arrowhead)" />
-                  <text x={p.x + 5} y={tailY + (isUp ? 10 : -5)} fill="#ef4444" fontSize="10" textAnchor="start" fontWeight="bold">
-                    {Math.abs(load.magnitudeY).toFixed(1)}
-                  </text>
-                </g>
-              );
-            }
-
-            // 3. Draw Moment
-            if (load.moment && Math.abs(load.moment) > 0.001) {
-              const r = 20;
-              const isCCW = load.moment > 0;
-              let d = "";
-              if (isCCW) d = `M ${p.x + r} ${p.y} A ${r} ${r} 0 1 0 ${p.x} ${p.y - r}`;
-              else d = `M ${p.x + r} ${p.y} A ${r} ${r} 0 1 1 ${p.x} ${p.y - r}`;
-
-              elements.push(
-                <g key={`moment-${load.id}`}>
-                  <path d={d} fill="none" stroke="#ef4444" strokeWidth="2" markerEnd="url(#arrowhead-moment)" />
-                  <text x={p.x + r + 5} y={p.y} fill="#ef4444" fontSize="11" fontWeight="bold">M={load.moment}</text>
-                </g>
-              );
-            }
-
-            return <g key={load.id}>{elements}</g>;
-          })}
-        </g>
-      </svg>
-
-      {/* Controls */}
-      <div className="absolute bottom-6 right-6 flex flex-col gap-2 bg-slate-800 p-2 rounded-lg border border-slate-700 shadow-lg">
-        <button onClick={() => setScale(s => s * 1.2)} className="p-2 text-slate-300 hover:bg-slate-700 rounded transition"><ZoomIn size={20} /></button>
-        <button onClick={() => setScale(s => s / 1.2)} className="p-2 text-slate-300 hover:bg-slate-700 rounded transition"><ZoomOut size={20} /></button>
-        <button onClick={centerStructure} className="p-2 text-slate-300 hover:bg-slate-700 rounded transition"><Maximize size={20} /></button>
       </div>
+
+      {/* Displacements Table */}
+      {analysisResults && analysisResults.isStable && (
+        <div className="h-48 bg-slate-900 border-t border-slate-700 flex flex-col z-10">
+          <div className="px-4 py-2 bg-slate-800 border-b border-slate-700 font-semibold text-xs text-slate-300 uppercase tracking-wider flex justify-between items-center">
+            <span>Nodal Displacements</span>
+            <span className="text-[10px] text-slate-500">Units: consistent with input (e.g. m, rad)</span>
+          </div>
+          <div className="overflow-auto flex-1 p-0">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead className="bg-slate-800/50 sticky top-0 text-slate-400 text-xs uppercase font-medium">
+                <tr>
+                  <th className="p-3 pl-4">Node</th>
+                  <th className="p-3">dx</th>
+                  <th className="p-3">dy</th>
+                  <th className="p-3">θ (theta)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 text-slate-300 font-mono text-xs">
+                {Object.entries(analysisResults.displacements).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([nodeId, disp]) => (
+                  <tr key={nodeId} className="hover:bg-slate-800/50 transition-colors">
+                    <td className="p-3 pl-4 font-bold text-cyan-400">{nodeId}</td>
+                    <td className="p-3">{disp.x.toExponential(4)}</td>
+                    <td className="p-3">{disp.y.toExponential(4)}</td>
+                    <td className="p-3">{disp.rotation.toExponential(4)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

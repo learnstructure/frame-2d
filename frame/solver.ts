@@ -247,8 +247,6 @@ class Structure {
     add_node_load(node_id_str: string, load: number[]) {
         const node_id = this.get_id(node_id_str);
         if (node_id) {
-            // Aggregate if multiple loads exist? Python code replaces. We replace.
-            // But usually we accumulate. Let's accumulate to be safe.
             const existing = this.nodes[node_id]["load"] || [0, 0, 0];
             this.nodes[node_id]["load"] = [existing[0] + load[0], existing[1] + load[1], existing[2] + load[2]];
         }
@@ -261,10 +259,8 @@ class Structure {
         const elId = id.id;
 
         const L = this.elements[elId]["length"];
-        // Logic from python code + Extension for Member Point loads which UI allows
         if (type === "udl") {
             this.elements[elId]["udl"] = w;
-            // eq_load = [Fx1, Fy1, M1, Fx2, Fy2, M2]
             this.elements[elId]["eq_load"] = [0, w * L / 2, w * L ** 2 / 12, 0, w * L / 2, -w * L ** 2 / 12];
         }
         else if (type === "triangular_sym") {
@@ -272,17 +268,9 @@ class Structure {
             this.elements[elId]["eq_load"] = [0, w * L / 4, 5 * w * L ** 2 / 96, 0, w * L / 4, -5 * w * L ** 2 / 96];
         }
         else if (type === "point") {
-            // Added to support UI Member Point loads which Python didn't explicitly show but user implies
-            // w is Force P, location is distance a from start
             const P = w;
             const a = location || L / 2;
             const b = L - a;
-
-            // Fixed End Actions (Reaction at support)
-            // FEM_start = -Pab^2/L^2, FEM_end = +Pa^2b/L^2
-            // Vertical: R_start = Pb^2(3a+b)/L^3, R_end = Pa^2(a+3b)/L^3
-            // Equivalent Nodal Load = Minus Fixed End Action
-            // Standard FEM M is CCW positive.
 
             // FEMs (Actions on beam ends)
             const M_start_fem = P * a * (b ** 2) / (L ** 2); // CCW +
@@ -290,26 +278,6 @@ class Structure {
 
             const V_start_fem = P * (b ** 2) * (3 * a + b) / (L ** 3);
             const V_end_fem = P * (a ** 2) * (a + 3 * b) / (L ** 3);
-
-            // Equivalent Nodal Loads are applied to nodes, so they are same direction as reactions required to hold fixed ends
-            // Wait, Standard procedure: F_eq = - F_fixed_end_action
-            // If P is down (-y local), the beam pulls down on supports. Supports push up. 
-            // The FEMs above are the "Reaction" forces if supports were fixed.
-            // So equivalent nodal loads are exactly these reactions? 
-            // Let's check UDL: w*L/2 Up. Matches Python [0, wL/2...]
-            // UDL Moment: wL^2/12. Python has wL^2/12.
-
-            // So we use the "Fixed Support Reaction" formulas directly.
-
-            // NOTE: Python code assumes w is "load value". If w is gravity load (down), typically passed as positive number in formulas?
-            // In the UI, Down is negative Y. 
-            // If UI passes negative W, then w*L/2 is negative (Down). Correct.
-
-            // For point load:
-            // Input P is Y component. If P is negative (down).
-            // Reaction V should be Up (positive)? No, Eq Load should equal P roughly.
-            // If P=-10, Total Eq Load should be -10.
-            // V_start_fem with P=-10 will be negative. Correct.
 
             this.elements[elId]["eq_load"] = [
                 0,
@@ -355,14 +323,12 @@ class Structure {
 
     get_free_dofs() {
         const dof_total = this.nodeCount * 3;
-        const free_dofs_flags = new Array(dof_total).fill(1); // 1 = free, 0 = fixed (Inverse of Python logic for easier filtering)
+        const free_dofs_flags = new Array(dof_total).fill(1);
 
         for (const key in this.nodes) {
             const node = this.nodes[key];
             const dofs = this.get_dofs(node.id);
-            const support = node.support || [0, 0, 0]; // 0=Free in python? 
-            // Python: "1 = fixed, 0 = free".
-            // So if support is [1, 1, 0] -> X fixed, Y fixed.
+            const support = node.support || [0, 0, 0];
 
             if (support[0] === 1) free_dofs_flags[dofs[0]] = 0;
             if (support[1] === 1) free_dofs_flags[dofs[1]] = 0;
@@ -419,15 +385,8 @@ class Structure {
     find_displacements() {
         this.get_free_dofs();
 
-        // Partition
         this.K_reduced = NP.ix_(this.K, this.free_dof, this.free_dof);
         this.node_load_reduced = this.free_dof.map(i => this.eff_node_load[i]);
-
-        // Stability Check (simplified: check zero rows)
-        // In real app, we might need more robust check, but following python logic:
-        // "zero_rows = np.where(np.all(self.K_reduced == 0, axis=1))[0]"
-        // If a DOF has no stiffness, we should remove it to avoid singularity if no load? 
-        // For now, assume connected.
 
         if (this.free_dof.length === 0) {
             this.free_dof_displacements = [];
@@ -446,14 +405,12 @@ class Structure {
     }
 
     find_reactions() {
-        // R = K_fixed * U - EqLoad_fixed
         if (this.fix_dof.length === 0) {
             this.reactions = [];
             return;
         }
 
         const K_fix = NP.ix_(this.K, this.fix_dof, Array.from({ length: this.nodeCount * 3 }, (_, i) => i));
-        // K_fix is (nFixed x nTotal). U is (nTotal).
         const KU = NP.matmul(K_fix, this.node_displacements) as number[];
 
         const eq_fixed = this.fix_dof.map(i => this.eq_node_load[i]);
@@ -461,12 +418,10 @@ class Structure {
     }
 }
 
-// Mimicking ElementResult to get forces
 function getElementForces(structure: Structure, elId: number) {
     const data = structure.elements[elId];
     let k = data["k_local"];
 
-    // Handle spring special case for local matrix size
     if (data["type"] === "spring") {
         const k_raw = k;
         k = NP.zeros(6, 6);
@@ -476,7 +431,6 @@ function getElementForces(structure: Structure, elId: number) {
 
     const t = transformation_matrix(data["sine"], data["cosine"]);
 
-    // Get global displacements for this element
     const start_dofs = structure.get_dofs(data["node_i"]);
     const end_dofs = structure.get_dofs(data["node_j"]);
     const d_global = [
@@ -484,41 +438,23 @@ function getElementForces(structure: Structure, elId: number) {
         ...end_dofs.map(i => structure.node_displacements[i])
     ];
 
-    // d_local = T @ d_global
     const d_local = NP.matmul(t, d_global);
-
-    // F = k @ d_local - eq_load
     const kd = NP.matmul(k, d_local);
     const eq = data["eq_load"] || [0, 0, 0, 0, 0, 0];
 
     return kd.map((v: number, i: number) => v - eq[i]);
 }
 
-
-// --- Main Adapter Function ---
-
 export const analyzeStructure = (model: StructureModel): AnalysisResults => {
     try {
         const structure = new Structure();
 
-        // 1. Add Nodes
         model.nodes.forEach(n => structure.add_node(n.id, n.x, n.y));
 
-        // 2. Add Elements
         model.members.forEach(m => {
             if (m.type === 'spring') {
                 structure.add_spring(m.id, m.startNodeId, m.endNodeId, m.springConstant || 100);
             } else {
-                // Beam or Truss (Truss modeled as frame with released moments? 
-                // Python code treats 'truss' in transformation_matrix dof=4 but 'frame' in add_frame. 
-                // Let's use add_frame with defaults.
-                // If the user selects truss, we should probably ensure it behaves like a truss (pinned ends).
-                // However, the python code snippet `add_frame` uses `BeamElement` which is rigid. 
-                // `transformation_matrix` checks `dof`.
-                // For this port, we map everything not spring to 'frame' but we might set I=0 for truss?
-                // The provided Python code for `BeamElement` is a full frame element.
-                // We will stick to `add_frame` for beams.
-
                 const E = m.eModulus || 200e9;
                 const A = m.area || 0.01;
                 const I = m.momentInertia || 0.0001;
@@ -526,24 +462,19 @@ export const analyzeStructure = (model: StructureModel): AnalysisResults => {
             }
         });
 
-        // 3. Add Supports
         model.supports.forEach(s => {
             let type = [0, 0, 0];
             if (s.type === SupportType.FIXED) type = [1, 1, 1];
             else if (s.type === SupportType.PIN) type = [1, 1, 0];
-            else if (s.type === SupportType.ROLLER) type = [0, 1, 0]; // Assume Y constrained
+            else if (s.type === SupportType.ROLLER) type = [0, 1, 0];
             structure.add_support(s.nodeId, type);
         });
 
-        // 4. Add Loads
         model.loads.forEach(l => {
             if (l.type === LoadType.NODAL_POINT && l.nodeId) {
                 structure.add_node_load(l.nodeId, [l.magnitudeX, l.magnitudeY, l.moment || 0]);
             } else if (l.memberId) {
-                // Determine load type for Python method
                 if (l.type === LoadType.MEMBER_DISTRIBUTED) {
-                    // Assuming Fy is the distributed load w.
-                    // Python code expects 'w'. 
                     structure.add_distributed_load(l.memberId, l.magnitudeY, "udl");
                 } else if (l.type === LoadType.MEMBER_POINT) {
                     structure.add_distributed_load(l.memberId, l.magnitudeY, "point", l.location);
@@ -551,18 +482,15 @@ export const analyzeStructure = (model: StructureModel): AnalysisResults => {
             }
         });
 
-        // 5. Run Analysis
         structure.assemble_structure_stiffness_matrix();
         structure.assemble_load_vector();
         structure.find_displacements();
         structure.find_reactions();
 
-        // 6. Map Results
         const displacements: any = {};
         const reactions: any = {};
         const memberForces: any = {};
 
-        // Displacements
         for (let i = 1; i <= structure.nodeCount; i++) {
             const node = structure.nodes[i];
             const dofs = structure.get_dofs(i);
@@ -573,29 +501,24 @@ export const analyzeStructure = (model: StructureModel): AnalysisResults => {
             };
         }
 
-        // Reactions (Only for fixed DOFs)
-        // structure.reactions is a flat array corresponding to fix_dof indices.
-        // We need to map back to nodes.
-        const reactionMap: { [id: string]: { fx: number, fy: number, m: number } } = {};
+        const reactionMap: { [id: string]: { fx: number, fy: number, moment: number } } = {};
 
         structure.fix_dof.forEach((globalDofIdx, i) => {
-            // globalDofIdx = (nodeIdx-1)*3 + localDof (0,1,2)
             const nodeIdx = Math.floor(globalDofIdx / 3) + 1;
             const localDof = globalDofIdx % 3;
             const nodeStr = structure.nodes[nodeIdx].idStr;
-            const val = structure.reactions[i]; // Value from reaction vector
+            const val = structure.reactions[i];
 
-            if (!reactionMap[nodeStr]) reactionMap[nodeStr] = { fx: 0, fy: 0, m: 0 };
+            if (!reactionMap[nodeStr]) reactionMap[nodeStr] = { fx: 0, fy: 0, moment: 0 };
             if (localDof === 0) reactionMap[nodeStr].fx = val;
             if (localDof === 1) reactionMap[nodeStr].fy = val;
-            if (localDof === 2) reactionMap[nodeStr].m = val;
+            if (localDof === 2) reactionMap[nodeStr].moment = val;
         });
         Object.assign(reactions, reactionMap);
 
-        // Member Forces
         for (const key in structure.elements) {
             const el = structure.elements[key];
-            const forces = getElementForces(structure, el.id); // [fx1, fy1, m1, fx2, fy2, m2]
+            const forces = getElementForces(structure, el.id);
             memberForces[el.idStr] = {
                 start: { fx: forces[0], fy: forces[1], moment: forces[2] },
                 end: { fx: forces[3], fy: forces[4], moment: forces[5] }
