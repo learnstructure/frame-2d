@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Play, FileText, Sparkles } from 'lucide-react';
+import { Play, FileText, Sparkles } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import StructureCanvas from './components/StructureCanvas';
 import ChatModal from './components/ChatModal';
@@ -20,11 +20,21 @@ const App = () => {
       {/* Header */}
       <header className="h-16 border-b border-slate-700 bg-[#0f172a] px-6 flex items-center justify-between z-20 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-tr from-cyan-500 to-blue-600 p-2 rounded-lg shadow-lg shadow-blue-900/50">
-            <Box className="text-white" size={24} />
+          {/* Logo Image - Place your image file named 'logo.png' in the public folder */}
+          <div className="p-1 rounded-lg shadow-lg shadow-blue-900/20 bg-white/5 border border-white/10">
+            <img
+              src="/logo.png"
+              alt="StructureRealm Logo"
+              className="w-8 h-8 object-contain"
+              onError={(e) => {
+                // Fallback if image is missing
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.parentElement!.innerHTML = '<div class="w-8 h-8 flex items-center justify-center text-xs text-slate-500">IMG</div>';
+              }}
+            />
           </div>
-          <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-            StructureRealm
+          <h1 className="text-2xl font-bold">
+            <span className="text-blue-400">Structure</span><span className="text-emerald-400">Realm</span>
           </h1>
         </div>
 
@@ -38,6 +48,12 @@ const App = () => {
           <button className="px-4 py-2 bg-slate-800 border border-slate-600 hover:bg-slate-700 text-slate-300 rounded font-medium flex items-center gap-2 transition-all">
             <FileText size={18} /> Report
           </button>
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded font-semibold flex items-center gap-2 transition-all shadow-lg hover:shadow-blue-900/50 group"
+          >
+            <Sparkles size={18} className="group-hover:animate-spin" /> Ask AI
+          </button>
         </div>
       </header>
 
@@ -45,17 +61,6 @@ const App = () => {
       <main className="flex-1 flex overflow-hidden relative">
         <Sidebar model={model} setModel={setModel} />
         <StructureCanvas model={model} />
-
-        {/* Floating AI Button (Visual cue if modal is closed) */}
-        {!isChatOpen && (
-          <button
-            onClick={() => setIsChatOpen(true)}
-            className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-6 py-3 rounded-full shadow-2xl hover:scale-105 transition-all flex items-center gap-2 group z-10"
-          >
-            <Sparkles size={20} className="group-hover:animate-spin" />
-            <span className="font-bold">Ask AI</span>
-          </button>
-        )}
       </main>
 
       {/* Chat Modal */}

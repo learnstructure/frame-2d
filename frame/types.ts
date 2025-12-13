@@ -5,14 +5,18 @@ export interface Node {
   label?: string;
 }
 
+export type MemberType = 'rigid' | 'truss' | 'spring';
+
 export interface Member {
   id: string;
   startNodeId: string;
   endNodeId: string;
-  eModulus: number; // GPa
-  area: number;     // m^2
-  momentInertia: number; // m^4
-  type: 'rigid' | 'truss';
+  // Properties
+  eModulus?: number;
+  area?: number;
+  momentInertia?: number;
+  springConstant?: number; // k
+  type: MemberType;
 }
 
 export enum SupportType {
@@ -28,20 +32,20 @@ export interface Support {
 }
 
 export enum LoadType {
-  POINT = 'point',
-  DISTRIBUTED = 'distributed'
+  NODAL_POINT = 'nodal_point',
+  MEMBER_POINT = 'member_point',
+  MEMBER_DISTRIBUTED = 'member_distributed'
 }
 
 export interface Load {
   id: string;
   type: LoadType;
-  // If point load, applies to node (usually) or member (intermediate)
-  // For simplicity in this UI, point loads apply to nodes
-  nodeId?: string; 
-  memberId?: string; // For distributed
-  magnitudeX: number; // kN
-  magnitudeY: number; // kN
-  moment?: number; // kNm
+  nodeId?: string;
+  memberId?: string;
+  magnitudeX: number;
+  magnitudeY: number;
+  moment?: number;
+  location?: number; // Distance from start node for member point loads
 }
 
 export interface StructureModel {
