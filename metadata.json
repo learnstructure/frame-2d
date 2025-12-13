@@ -1,0 +1,5 @@
+{
+  "name": "StructureRealm",
+  "description": "A 2D structural frame analysis frontend. Users can define nodes, members, supports, and loads, visualize the structure, and use AI to analyze stability and mechanics.",
+  "requestFramePermissions": []
+}
