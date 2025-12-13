@@ -3,7 +3,8 @@ import { Play, FileText, Sparkles } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import StructureCanvas from './components/StructureCanvas';
 import ChatModal from './components/ChatModal';
-import { StructureModel } from './frame/types';
+import { StructureModel, AnalysisResults } from './frame/types';
+import { analyzeStructure } from './frame/solver';
 
 const App = () => {
   const [model, setModel] = useState<StructureModel>({
@@ -13,7 +14,25 @@ const App = () => {
     loads: []
   });
 
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+
+  const handleAnalyze = () => {
+    // Run the local solver
+    const results = analyzeStructure(model);
+    setAnalysisResults(results);
+
+    // Optional: Alert if unstable, or let the canvas visualizer handle it
+    if (!results.isStable) {
+      alert(`Analysis Failed: ${results.message}`);
+    }
+  };
+
+  const handleModelChange: React.Dispatch<React.SetStateAction<StructureModel>> = (arg) => {
+    // Clear results if model changes
+    setAnalysisResults(null);
+    setModel(arg);
+  };
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0f172a] text-slate-100 font-sans">
@@ -40,8 +59,8 @@ const App = () => {
 
         <div className="flex items-center gap-4">
           <button
-            onClick={() => setIsChatOpen(true)}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-semibold flex items-center gap-2 transition-all shadow-lg hover:shadow-emerald-900/50"
+            onClick={handleAnalyze}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-semibold flex items-center gap-2 transition-all shadow-lg hover:shadow-emerald-900/50 active:translate-y-0.5"
           >
             <Play size={18} fill="currentColor" /> Analyze
           </button>
@@ -59,8 +78,8 @@ const App = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden relative">
-        <Sidebar model={model} setModel={setModel} />
-        <StructureCanvas model={model} />
+        <Sidebar model={model} setModel={handleModelChange} />
+        <StructureCanvas model={model} analysisResults={analysisResults} />
       </main>
 
       {/* Chat Modal */}
@@ -68,6 +87,7 @@ const App = () => {
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         model={model}
+        initialResults={analysisResults}
       />
     </div>
   );
