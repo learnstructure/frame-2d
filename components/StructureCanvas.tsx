@@ -344,7 +344,7 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
       const boxHeight = lines.length * lineHeight + paddingY * 1.5;
 
       // Position below the support (assuming support is drawn around node y)
-      // Fixed supports extend down, so we push it down a bit more (e.g., 25px offset)
+      // Fixed supports extend down, so we push it down a bit more (e.g. 25px offset)
       const boxX = p.x - boxWidth / 2;
       const boxY = p.y + 25;
 
@@ -411,34 +411,34 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
         </svg>
 
         {model.nodes.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <h1 className="text-8xl font-black text-slate-800 tracking-tighter select-none">STRUCTURE REALM</h1>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-4 text-center">
+            <h1 className="text-5xl md:text-8xl font-black text-slate-800 tracking-tighter select-none">STRUCTURE REALM</h1>
           </div>
         )}
 
         {/* Global Analysis Count */}
         {globalAnalysisCount !== null && (
-          <div className="absolute bottom-6 left-6 bg-slate-900/80 border border-slate-700 px-4 py-2 rounded-lg flex items-center gap-3 shadow-lg pointer-events-none z-10 backdrop-blur-sm">
-            <div className="p-1.5 bg-emerald-500/10 rounded-full">
-              <Activity size={16} className="text-emerald-400" />
+          <div className="absolute bottom-4 left-4 md:bottom-6 md:left-6 bg-slate-900/80 border border-slate-700 px-3 py-1.5 md:px-4 md:py-2 rounded-lg flex items-center gap-2 md:gap-3 shadow-lg pointer-events-none z-10 backdrop-blur-sm">
+            <div className="p-1 md:p-1.5 bg-emerald-500/10 rounded-full">
+              <Activity size={14} className="text-emerald-400 md:w-4 md:h-4" />
             </div>
             <div className="flex flex-col">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Analyses Run</span>
-              <span className="text-lg font-mono font-bold text-white leading-none">{globalAnalysisCount.toLocaleString()}</span>
+              <span className="text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider font-bold">Analyses Run</span>
+              <span className="text-sm md:text-lg font-mono font-bold text-white leading-none">{globalAnalysisCount.toLocaleString()}</span>
             </div>
           </div>
         )}
 
-        {/* Legend - Moved to top right */}
+        {/* Legend */}
         {analysisResults && analysisResults.isStable && (
-          <div className="absolute top-4 right-4 bg-slate-900/80 border border-slate-700 px-4 py-2 rounded-full flex items-center gap-3 z-10 pointer-events-none">
+          <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-slate-900/80 border border-slate-700 px-3 py-1.5 md:px-4 md:py-2 rounded-full flex items-center gap-2 md:gap-3 z-10 pointer-events-none backdrop-blur-sm">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-0.5 bg-sky-400"></div>
-              <span className="text-xs text-slate-400">Structure</span>
+              <div className="w-2 h-0.5 md:w-3 bg-sky-400"></div>
+              <span className="text-[10px] md:text-xs text-slate-400">Structure</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-0.5 bg-green-400"></div>
-              <span className="text-xs text-green-400 font-bold">Reactions</span>
+              <div className="w-2 h-0.5 md:w-3 bg-green-400"></div>
+              <span className="text-[10px] md:text-xs text-green-400 font-bold">Reactions</span>
             </div>
           </div>
         )}
@@ -582,37 +582,37 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
         </svg>
 
         {/* Controls */}
-        <div className="absolute bottom-6 right-6 flex flex-col gap-2 bg-slate-800 p-2 rounded-lg border border-slate-700 shadow-lg">
-          <button onClick={() => setScale(s => s * 1.2)} className="p-2 text-slate-300 hover:bg-slate-700 rounded transition"><ZoomIn size={20} /></button>
-          <button onClick={() => setScale(s => s / 1.2)} className="p-2 text-slate-300 hover:bg-slate-700 rounded transition"><ZoomOut size={20} /></button>
-          <button onClick={centerStructure} className="p-2 text-slate-300 hover:bg-slate-700 rounded transition"><Maximize size={20} /></button>
+        <div className="absolute bottom-4 right-4 md:bottom-6 md:right-6 flex flex-col gap-2 bg-slate-800 p-1.5 md:p-2 rounded-lg border border-slate-700 shadow-lg">
+          <button onClick={() => setScale(s => s * 1.2)} className="p-1.5 md:p-2 text-slate-300 hover:bg-slate-700 rounded transition"><ZoomIn size={18} className="md:w-5 md:h-5" /></button>
+          <button onClick={() => setScale(s => s / 1.2)} className="p-1.5 md:p-2 text-slate-300 hover:bg-slate-700 rounded transition"><ZoomOut size={18} className="md:w-5 md:h-5" /></button>
+          <button onClick={centerStructure} className="p-1.5 md:p-2 text-slate-300 hover:bg-slate-700 rounded transition"><Maximize size={18} className="md:w-5 md:h-5" /></button>
         </div>
       </div>
 
-      {/* Displacements Table */}
+      {/* Displacements Table - Responsive Height */}
       {analysisResults && analysisResults.isStable && (
-        <div className="h-48 bg-slate-900 border-t border-slate-700 flex flex-col z-10">
-          <div className="px-4 py-2 bg-slate-800 border-b border-slate-700 font-semibold text-xs text-slate-300 uppercase tracking-wider flex justify-between items-center">
+        <div className="h-40 md:h-48 bg-slate-900 border-t border-slate-700 flex flex-col z-10 flex-shrink-0">
+          <div className="px-3 py-2 md:px-4 bg-slate-800 border-b border-slate-700 font-semibold text-[10px] md:text-xs text-slate-300 uppercase tracking-wider flex justify-between items-center">
             <span>Nodal Displacements</span>
-            <span className="text-[10px] text-slate-500">Units: consistent with input (e.g. m, rad)</span>
+            <span className="text-[9px] md:text-[10px] text-slate-500">Units: consistent with input</span>
           </div>
           <div className="overflow-auto flex-1 p-0">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead className="bg-slate-800/50 sticky top-0 text-slate-400 text-xs uppercase font-medium">
+            <table className="w-full text-left border-collapse text-xs md:text-sm">
+              <thead className="bg-slate-800/50 sticky top-0 text-slate-400 text-[10px] md:text-xs uppercase font-medium">
                 <tr>
-                  <th className="p-3 pl-4">Node</th>
-                  <th className="p-3">dx</th>
-                  <th className="p-3">dy</th>
-                  <th className="p-3">θ (theta)</th>
+                  <th className="p-2 md:p-3 pl-3 md:pl-4">Node</th>
+                  <th className="p-2 md:p-3">dx</th>
+                  <th className="p-2 md:p-3">dy</th>
+                  <th className="p-2 md:p-3">θ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-300 font-mono text-xs">
+              <tbody className="divide-y divide-slate-800 text-slate-300 font-mono text-[10px] md:text-xs">
                 {Object.entries(analysisResults.displacements).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([nodeId, disp]) => (
                   <tr key={nodeId} className="hover:bg-slate-800/50 transition-colors">
-                    <td className="p-3 pl-4 font-bold text-cyan-400">{nodeId}</td>
-                    <td className="p-3">{disp.x.toExponential(4)}</td>
-                    <td className="p-3">{disp.y.toExponential(4)}</td>
-                    <td className="p-3">{disp.rotation.toExponential(4)}</td>
+                    <td className="p-2 md:p-3 pl-3 md:pl-4 font-bold text-cyan-400">{nodeId}</td>
+                    <td className="p-2 md:p-3">{disp.x.toExponential(4)}</td>
+                    <td className="p-2 md:p-3">{disp.y.toExponential(4)}</td>
+                    <td className="p-2 md:p-3">{disp.rotation.toExponential(4)}</td>
                   </tr>
                 ))}
               </tbody>

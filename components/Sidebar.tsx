@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, ArrowRight, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, ArrowRight, AlertCircle, X } from 'lucide-react';
 import { StructureModel, SupportType, LoadType, MemberType } from '../frame/types';
 
 interface SidebarProps {
   model: StructureModel;
   setModel: React.Dispatch<React.SetStateAction<StructureModel>>;
+  onCloseMobile?: () => void;
 }
 
 type Tab = 'nodes' | 'members' | 'supports' | 'loads';
 
-const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
+const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => {
   const [activeTab, setActiveTab] = useState<Tab>('nodes');
   const [error, setError] = useState<string | null>(null);
 
@@ -154,8 +155,8 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
     <button
       onClick={() => setActiveTab(tab)}
       className={`flex-1 py-3 text-xs font-bold uppercase border-b-2 transition-colors ${activeTab === tab
-          ? 'border-cyan-500 text-cyan-400'
-          : 'border-transparent text-slate-400 hover:text-slate-200'
+        ? 'border-cyan-500 text-cyan-400'
+        : 'border-transparent text-slate-400 hover:text-slate-200'
         }`}
     >
       {label}
@@ -168,18 +169,26 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
   };
 
   return (
-    <div className="w-80 bg-[#111827] border-r border-slate-700 flex flex-col h-full shadow-xl z-10">
+    <div className="w-full h-full bg-[#111827] flex flex-col z-10">
+      {/* Mobile Header with Close Button */}
+      <div className="md:hidden flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900">
+        <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Editor Panel</span>
+        <button onClick={onCloseMobile} className="text-slate-400 hover:text-white">
+          <X size={20} />
+        </button>
+      </div>
+
       {/* Tabs */}
-      <div className="flex bg-[#1e293b]">
+      <div className="flex bg-[#1e293b] flex-shrink-0">
         {renderTabButton('nodes', 'Nodes')}
         {renderTabButton('members', 'Members')}
         {renderTabButton('supports', 'Support')}
         {renderTabButton('loads', 'Loads')}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 relative">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 relative scrollbar-thin scrollbar-thumb-slate-700">
         {error && (
-          <div className="absolute top-2 left-2 right-2 bg-red-900/90 border border-red-500 text-white p-2 rounded text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-2 z-50">
+          <div className="absolute top-2 left-2 right-2 bg-red-900/90 border border-red-500 text-white p-2 rounded text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-2 z-50 shadow-lg">
             <AlertCircle size={14} /> {error}
           </div>
         )}
@@ -210,7 +219,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
             </div>
             <button
               onClick={addNode}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-medium flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
             >
               <Plus size={16} /> Add Node
             </button>
@@ -326,7 +335,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
             <button
               onClick={addMember}
               disabled={!tempMember.startNodeId || !tempMember.endNodeId}
-              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded font-medium flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
             >
               <Plus size={16} /> Connect
             </button>
@@ -387,7 +396,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
             <button
               onClick={addSupport}
               disabled={!tempSupport.nodeId}
-              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded font-medium flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
             >
               <Plus size={16} /> Add Support
             </button>
@@ -510,7 +519,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
             <button
               onClick={addLoad}
               disabled={!tempLoad.targetId}
-              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded font-medium flex items-center justify-center gap-2 transition-all active:scale-95"
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded font-medium flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
             >
               <Plus size={16} /> Add Load
             </button>
@@ -540,8 +549,8 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel }) => {
         )}
       </div>
 
-      <div className="p-4 border-t border-slate-700">
-        <button onClick={clearModel} className="w-full py-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded border border-red-900/50 flex items-center justify-center gap-2 text-sm transition-all">
+      <div className="p-4 border-t border-slate-700 flex-shrink-0">
+        <button onClick={clearModel} className="w-full py-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded border border-red-900/50 flex items-center justify-center gap-2 text-sm transition-all shadow-sm">
           <Trash2 size={14} /> Clear Model
         </button>
       </div>

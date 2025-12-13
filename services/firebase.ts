@@ -1,4 +1,7 @@
+// @ts-ignore
 import { initializeApp } from "firebase/app";
+// @ts-ignore
+import { getAnalytics } from "firebase/analytics";
 import { getFirestore, doc, updateDoc, increment, setDoc, onSnapshot } from "firebase/firestore";
 
 // Load config from process.env (injected by Vite define)
@@ -8,15 +11,27 @@ const firebaseConfig = {
     projectId: process.env.FIREBASE_PROJECT_ID,
     storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
     messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID
+    appId: process.env.FIREBASE_APP_ID,
+    measurementId: process.env.FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase only if config is present to prevent crashes during dev without credentials
-let db: any = null;
+export let db: any = null;
+export let analytics: any = null;
+
 if (firebaseConfig.apiKey) {
     try {
         const app = initializeApp(firebaseConfig);
         db = getFirestore(app);
+
+        // Analytics is only supported in browser environments
+        if (typeof window !== 'undefined') {
+            try {
+                analytics = getAnalytics(app);
+            } catch (analyticsError) {
+                console.warn("Firebase Analytics failed to initialize (possibly missing measurementId or blocked):", analyticsError);
+            }
+        }
     } catch (e) {
         console.error("Firebase initialization error:", e);
     }
