@@ -12,7 +12,7 @@ export const analyzeStructureWithAI = async (
   const apiKey = getApiKey();
 
   if (!apiKey) {
-    return "### Feature not available right now.\n\nThis feature will soon be implemented once API access is secured.";
+    return "### API Key Missing\n\nIt looks like you haven't configured your Google Gemini API key yet.\n\n1. Create a `.env` file in your project root.\n2. Add `API_KEY=your_actual_key_here`.\n3. Restart the server.";
   }
 
   try {

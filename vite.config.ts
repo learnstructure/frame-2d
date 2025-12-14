@@ -10,6 +10,8 @@ export default defineConfig(({ mode }) => {
     define: {
       // Map the .env variable API_KEY to process.env.API_KEY for the app code
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
+      // Map Groq API Key
+      'process.env.GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY),
       // Map Firebase config variables
       'process.env.FIREBASE_API_KEY': JSON.stringify(env.VITE_FIREBASE_API_KEY),
       'process.env.FIREBASE_AUTH_DOMAIN': JSON.stringify(env.VITE_FIREBASE_AUTH_DOMAIN),

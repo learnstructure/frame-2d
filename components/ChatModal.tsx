@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Bot, Sparkles, User, Loader2 } from 'lucide-react';
+import { X, Send, Bot, Sparkles, User, Loader2, Zap } from 'lucide-react';
 import { analyzeStructureWithAI } from '../services/geminiService';
+import { analyzeStructureWithGroq } from '../services/groqService';
 import { analyzeStructure } from '../frame/solver';
 import { StructureModel, AnalysisResults } from '../frame/types';
 import ReactMarkdown from 'react-markdown';
@@ -17,10 +18,13 @@ interface Message {
   content: string;
 }
 
+type AIProvider = 'gemini' | 'groq';
+
 const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialResults }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [provider, setProvider] = useState<AIProvider>('groq');
   const scrollRef = useRef<HTMLDivElement>(null);
   const [results, setResults] = useState<AnalysisResults | null>(null);
 
@@ -28,12 +32,19 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
     // If we receive new results from parent, update state
     if (initialResults) {
       setResults(initialResults);
+    } else {
+      // If parent clears results (e.g. model changed), we clear local results too
+      setResults(null);
     }
   }, [initialResults]);
 
   useEffect(() => {
+    // When modal opens, if no messages exist, show welcome message instead of auto-analyzing
     if (isOpen && messages.length === 0) {
-      handleInitialAnalysis();
+      setMessages([{
+        role: 'assistant',
+        content: "Hi! I can see your model. Please ask your questions about stability, forces, or potential improvements."
+      }]);
     }
   }, [isOpen]);
 
@@ -43,26 +54,12 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
     }
   }, [messages]);
 
-  const handleInitialAnalysis = async () => {
-    setLoading(true);
-
-    // 1. Get Numerical Results
-    // Use initialResults passed from App if available, otherwise run solver
-    let localResults: AnalysisResults | null = initialResults;
-
-    if (!localResults) {
-      try {
-        localResults = analyzeStructure(model);
-        setResults(localResults);
-      } catch (err) {
-        console.error("Solver error", err);
-      }
+  const callAI = async (currentModel: StructureModel, query?: string, currentResults?: AnalysisResults | null) => {
+    if (provider === 'groq') {
+      return await analyzeStructureWithGroq(currentModel, query, currentResults || undefined);
+    } else {
+      return await analyzeStructureWithAI(currentModel, query, currentResults || undefined);
     }
-
-    // 2. Send to AI
-    const response = await analyzeStructureWithAI(model, undefined, localResults || undefined);
-    setMessages([{ role: 'assistant', content: response }]);
-    setLoading(false);
   };
 
   const handleSend = async () => {
@@ -73,7 +70,20 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
     setLoading(true);
 
     try {
-      const response = await analyzeStructureWithAI(model, userMsg, results || undefined);
+      // Lazy analysis: If we don't have results yet, try to run the solver locally on the current model
+      // This ensures the AI has the most up-to-date context even if user didn't click "Analyze" in UI
+      let currentResults = results;
+      if (!currentResults) {
+        try {
+          currentResults = analyzeStructure(model);
+          setResults(currentResults);
+        } catch (err) {
+          // It's okay if solver fails (e.g. incomplete model), AI will just see the model definition
+          console.log("Auto-solver in chat skipped due to incomplete model or error");
+        }
+      }
+
+      const response = await callAI(model, userMsg, currentResults);
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I couldn't process that request." }]);
@@ -90,13 +100,25 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
 
         {/* Header */}
         <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-[#0f172a]">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-              <Sparkles size={16} className="text-white" />
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${provider === 'gemini' ? 'bg-gradient-to-br from-cyan-500 to-blue-600' : 'bg-gradient-to-br from-orange-500 to-red-600'}`}>
+              {provider === 'gemini' ? <Sparkles size={16} className="text-white" /> : <Zap size={16} className="text-white" />}
             </div>
             <div>
-              <h3 className="font-bold text-white">Structure AI Assistant</h3>
-              <p className="text-xs text-slate-400">Powered by Gemini + Local Solver</p>
+              <h3 className="font-bold text-white flex items-center gap-2">
+                AI Assistant
+                <select
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value as AIProvider)}
+                  className="ml-2 text-xs bg-slate-800 border border-slate-600 rounded px-2 py-1 text-slate-300 outline-none focus:border-cyan-500"
+                >
+                  <option value="gemini">Google Gemini</option>
+                  <option value="groq">Groq (Llama 3)</option>
+                </select>
+              </h3>
+              <p className="text-xs text-slate-400">
+                {provider === 'gemini' ? 'Powered by Gemini 2.5 Flash' : 'Powered by Llama 3.3 70B'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition">
@@ -108,7 +130,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#1e293b]">
           {messages.map((msg, i) => (
             <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${msg.role === 'user' ? 'bg-slate-700' : 'bg-blue-600/20 text-blue-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${msg.role === 'user' ? 'bg-slate-700' : (provider === 'gemini' ? 'bg-blue-600/20 text-blue-400' : 'bg-orange-600/20 text-orange-400')}`}>
                 {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
               <div className={`max-w-[80%] rounded-lg p-3 text-sm leading-relaxed ${msg.role === 'user'
@@ -121,12 +143,14 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
           ))}
           {loading && (
             <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${provider === 'gemini' ? 'bg-blue-600/20 text-blue-400' : 'bg-orange-600/20 text-orange-400'}`}>
                 <Bot size={16} />
               </div>
               <div className="bg-slate-800 rounded-lg p-3 border border-slate-700 flex items-center gap-2">
-                <Loader2 size={16} className="animate-spin text-cyan-400" />
-                <span className="text-xs text-slate-400">Solving and Thinking...</span>
+                <Loader2 size={16} className={`animate-spin ${provider === 'gemini' ? 'text-cyan-400' : 'text-orange-400'}`} />
+                <span className="text-xs text-slate-400">
+                  {provider === 'gemini' ? 'Thinking with Gemini...' : 'Thinking with Groq...'}
+                </span>
               </div>
             </div>
           )}
@@ -145,7 +169,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors"
+            className={`px-4 py-2 rounded-lg transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed ${provider === 'gemini' ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-orange-600 hover:bg-orange-500'}`}
           >
             <Send size={18} />
           </button>
