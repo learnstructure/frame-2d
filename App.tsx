@@ -76,9 +76,9 @@ const App = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0f172a] text-slate-100 font-sans">
+    <div className="h-full min-h-[100dvh] md:h-screen md:overflow-hidden w-screen flex flex-col bg-[#0f172a] text-slate-100 font-sans overflow-y-auto">
       {/* Header */}
-      <header className="h-16 border-b border-slate-700 bg-[#0f172a] px-4 md:px-6 flex items-center justify-between z-20 shadow-lg flex-shrink-0">
+      <header className="h-16 border-b border-slate-700 bg-[#0f172a] px-4 md:px-6 flex items-center justify-between z-20 shadow-lg flex-shrink-0 sticky top-0">
         <div className="flex items-center gap-3">
           {/* Mobile Menu Toggle */}
           <button
@@ -149,18 +149,18 @@ const App = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex overflow-hidden relative">
+      <main className="flex-1 flex flex-col md:flex-row relative min-h-[calc(100dvh-4rem)]">
         {/* Mobile Sidebar Overlay */}
         {isSidebarOpen && (
           <div
-            className="absolute inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
+            className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
 
         {/* Sidebar Container - Responsive Drawer */}
         <div className={`
-           absolute inset-y-0 left-0 z-30 w-80 bg-[#111827] transform transition-transform duration-300 shadow-2xl
+           fixed inset-y-0 left-0 z-30 w-80 bg-[#111827] transform transition-transform duration-300 shadow-2xl
            md:relative md:translate-x-0 md:shadow-none md:border-r md:border-slate-700
            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}>
@@ -171,8 +171,10 @@ const App = () => {
           />
         </div>
 
-        {/* Canvas takes remaining space */}
-        <StructureCanvas model={model} analysisResults={analysisResults} />
+        {/* Canvas takes remaining space, ensure min height on mobile for scrolling */}
+        <div className="flex-1 h-[60vh] md:h-auto min-h-[500px] flex flex-col">
+          <StructureCanvas model={model} analysisResults={analysisResults} />
+        </div>
       </main>
 
       {/* Chat Modal */}
