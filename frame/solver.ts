@@ -457,7 +457,9 @@ export const analyzeStructure = (model: StructureModel): AnalysisResults => {
             } else {
                 const E = m.eModulus || 200e9;
                 const A = m.area || 0.01;
-                const I = m.momentInertia || 0.0001;
+                // CHANGED: Force I to 0 for Truss type to ensure zero rotational stiffness.
+                // Otherwise defaults to 0.0001 (Frame) which causes artificial rotations.
+                const I = m.type === 'truss' ? 0 : (m.momentInertia || 0.0001);
                 structure.add_frame(m.id, m.startNodeId, m.endNodeId, E, A, I);
             }
         });
