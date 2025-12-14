@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Bot, Sparkles, User, Loader2, Zap } from 'lucide-react';
+import { X, Send, Bot, Sparkles, User, Loader2, Zap, Clock, AlertTriangle } from 'lucide-react';
 import { analyzeStructureWithAI } from '../services/geminiService';
 import { analyzeStructureWithGroq } from '../services/groqService';
 import { analyzeStructure } from '../frame/solver';
@@ -20,6 +20,9 @@ interface Message {
 
 type AIProvider = 'gemini' | 'groq';
 
+const COOLDOWN_MS = 5000; // 5 seconds between messages
+const HOURLY_LIMIT = 15; // Max messages per hour per user
+
 const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialResults }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -27,6 +30,10 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
   const [provider, setProvider] = useState<AIProvider>('groq');
   const scrollRef = useRef<HTMLDivElement>(null);
   const [results, setResults] = useState<AnalysisResults | null>(null);
+
+  // Spam Protection State
+  const [cooldown, setCooldown] = useState(0);
+  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
 
   useEffect(() => {
     // If we receive new results from parent, update state
@@ -38,12 +45,28 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
     }
   }, [initialResults]);
 
+  // Cooldown Timer Logic
   useEffect(() => {
-    // When modal opens, if no messages exist, show welcome message instead of auto-analyzing
+    let interval: NodeJS.Timeout;
+    if (cooldown > 0) {
+      interval = setInterval(() => {
+        setCooldown((prev) => Math.max(0, prev - 1000));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [cooldown]);
+
+  useEffect(() => {
+    // When modal opens, if no messages exist, show welcome message
     if (isOpen && messages.length === 0) {
+      const hasStructure = model.nodes.length > 0;
+      const welcomeMsg = hasStructure
+        ? "Hi! I can see your model. Please ask your questions about stability, forces, or potential improvements."
+        : "Hi! I am your structural analysis assistant. Please start by adding nodes and members in the sidebar to define your structure.";
+
       setMessages([{
         role: 'assistant',
-        content: "Hi! I can see your model. Please ask your questions about stability, forces, or potential improvements."
+        content: welcomeMsg
       }]);
     }
   }, [isOpen]);
@@ -53,6 +76,40 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const checkRateLimits = (): boolean => {
+    const now = Date.now();
+
+    // 1. Cooldown Check
+    if (cooldown > 0) {
+      return false;
+    }
+
+    // 2. LocalStorage Usage Check (Hourly Limit)
+    try {
+      const storageKey = 'sr_chat_usage';
+      const usageData = localStorage.getItem(storageKey);
+      let usage = usageData ? JSON.parse(usageData) : { count: 0, startTime: now };
+
+      // Reset if hour has passed
+      if (now - usage.startTime > 3600000) {
+        usage = { count: 0, startTime: now };
+      }
+
+      if (usage.count >= HOURLY_LIMIT) {
+        setRateLimitError(`You have reached the hourly limit of ${HOURLY_LIMIT} messages. Please try again later.`);
+        return false;
+      }
+
+      // Increment
+      usage.count++;
+      localStorage.setItem(storageKey, JSON.stringify(usage));
+    } catch (e) {
+      console.error("Local storage error", e);
+    }
+
+    return true;
+  };
 
   const callAI = async (currentModel: StructureModel, query?: string, currentResults?: AnalysisResults | null) => {
     if (provider === 'groq') {
@@ -64,21 +121,32 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
+
+    // Spam Check: Duplicate message
+    if (messages.length > 0 && messages[messages.length - 1].role === 'user' && messages[messages.length - 1].content === input) {
+      setRateLimitError("Please do not send the same message twice.");
+      setTimeout(() => setRateLimitError(null), 3000);
+      return;
+    }
+
+    // Rate Limit Check
+    if (!checkRateLimits()) return;
+    setRateLimitError(null);
+
     const userMsg = input;
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setLoading(true);
+    setCooldown(COOLDOWN_MS); // Start cooldown
 
     try {
       // Lazy analysis: If we don't have results yet, try to run the solver locally on the current model
-      // This ensures the AI has the most up-to-date context even if user didn't click "Analyze" in UI
       let currentResults = results;
       if (!currentResults) {
         try {
           currentResults = analyzeStructure(model);
           setResults(currentResults);
         } catch (err) {
-          // It's okay if solver fails (e.g. incomplete model), AI will just see the model definition
           console.log("Auto-solver in chat skipped due to incomplete model or error");
         }
       }
@@ -154,24 +222,37 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
               </div>
             </div>
           )}
+          {rateLimitError && (
+            <div className="flex justify-center animate-in fade-in slide-in-from-bottom-2">
+              <div className="bg-red-900/50 border border-red-500/50 text-red-200 text-xs px-3 py-2 rounded-lg flex items-center gap-2">
+                <AlertTriangle size={14} />
+                {rateLimitError}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Input */}
-        <div className="p-4 border-t border-slate-700 bg-[#0f172a] flex gap-2">
+        <div className="p-4 border-t border-slate-700 bg-[#0f172a] flex gap-2 relative">
           <input
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
-            placeholder="Ask about stability, reactions, or improvements..."
-            className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-sm text-white focus:border-cyan-500 outline-none"
+            disabled={loading || cooldown > 0}
+            placeholder={cooldown > 0 ? `Wait ${Math.ceil(cooldown / 1000)}s...` : "Ask about stability, reactions, or improvements..."}
+            className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-sm text-white focus:border-cyan-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <button
             onClick={handleSend}
-            disabled={loading || !input.trim()}
-            className={`px-4 py-2 rounded-lg transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed ${provider === 'gemini' ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-orange-600 hover:bg-orange-500'}`}
+            disabled={loading || !input.trim() || cooldown > 0}
+            className={`px-4 py-2 rounded-lg transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed min-w-[50px] flex items-center justify-center ${provider === 'gemini' ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-orange-600 hover:bg-orange-500'}`}
           >
-            <Send size={18} />
+            {cooldown > 0 ? (
+              <span className="text-xs font-mono font-bold">{Math.ceil(cooldown / 1000)}s</span>
+            ) : (
+              <Send size={18} />
+            )}
           </button>
         </div>
       </div>

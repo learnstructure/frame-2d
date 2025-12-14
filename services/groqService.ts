@@ -36,14 +36,21 @@ export const analyzeStructureWithGroq = async (
       This application was created by Abinash Mandal, a PhD student at the University of Nevada, Reno (UNR).
       LinkedIn: https://www.linkedin.com/in/abinash-mandal-90132b238/
       
-      Context:
+      App Interface Context (How users use this app):
+      - Users interact with a GUI (Graphical User Interface), NOT code.
+      - Sidebar: Users define Nodes (coordinates), Members (connecting nodes), Supports (pin/roller/fixed), and Loads here.
+      - Canvas: The central area displays the 2D structure visualization.
+      - Analyze Button: Users click the "Play" icon/Analyze button in the header to run the matrix stiffness solver.
+      - Report: Users can generate a PDF report after analysis.
+      
+      Current Model Context:
       ${context}
       
       Guidelines:
       1. Be concise and professional.
       2. Use Markdown.
-      3. If the analysis failed (unstable), suggest where to add supports.
-      4. Highlight maximum reactions if available.
+      3. If asked "how to use", explain the GUI steps (Sidebar -> Add Nodes/Members -> Analyze), DO NOT tell them to write JSON.
+      4. If the analysis failed (unstable), suggest where to add supports using the node IDs provided.
       5. If the user asks about the creator or author, provide Abinash's details and LinkedIn link.
     `;
 
