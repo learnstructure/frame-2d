@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { StructureModel, SupportType, LoadType, AnalysisResults } from '../frame/types';
 import { ZoomIn, ZoomOut, Maximize, Activity } from 'lucide-react';
@@ -216,20 +217,32 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
     const len = Math.sqrt(dx * dx + dy * dy);
     const arrowLen = 25;
     const arrowColor = "#f472b6";
+    const momentColor = "#f59e0b";
 
     if (load.type === LoadType.MEMBER_DISTRIBUTED) {
       const count = Math.max(3, Math.floor(len / 30));
       const arrows = [];
       if (Math.abs(load.magnitudeX) > 0.001) {
         const angle = load.magnitudeX > 0 ? 0 : Math.PI;
+        const cosA = Math.cos(angle);
+        const sinA = Math.sin(angle);
         for (let i = 0; i <= count; i++) {
           const t = i / count;
           const x = p1.x + dx * t;
           const y = p1.y + dy * t;
-          const tailX = x - Math.cos(angle) * arrowLen;
-          const tailY = y - Math.sin(angle) * arrowLen;
+          const tailX = x - cosA * arrowLen;
+          const tailY = y - sinA * arrowLen;
           arrows.push(<line key={`udlx-${i}`} x1={tailX} y1={tailY} x2={x} y2={y} stroke={arrowColor} strokeWidth="1" markerEnd="url(#arrowhead-pink)" />);
         }
+        // Add connecting bar for X UDL
+        arrows.push(
+          <line
+            key={`udlx-bar`}
+            x1={p1.x - cosA * arrowLen} y1={p1.y - sinA * arrowLen}
+            x2={p2.x - cosA * arrowLen} y2={p2.y - sinA * arrowLen}
+            stroke={arrowColor} strokeWidth="1"
+          />
+        );
       }
       if (Math.abs(load.magnitudeY) > 0.001) {
         const isUp = load.magnitudeY > 0;
@@ -240,6 +253,15 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
           const y = p1.y + dy * t;
           arrows.push(<line key={`udly-${i}`} x1={x} y1={y - dyArrow} x2={x} y2={y} stroke={arrowColor} strokeWidth="1" markerEnd="url(#arrowhead-pink)" />);
         }
+        // Add connecting bar for Y UDL
+        arrows.push(
+          <line
+            key={`udly-bar`}
+            x1={p1.x} y1={p1.y - dyArrow}
+            x2={p2.x} y2={p2.y - dyArrow}
+            stroke={arrowColor} strokeWidth="1"
+          />
+        );
       }
       return <g key={load.id}>{arrows}</g>;
     } else if (load.type === LoadType.MEMBER_POINT) {
@@ -258,6 +280,16 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
         const isUp = load.magnitudeY > 0;
         const tailY = isUp ? y + 30 : y - 30;
         elements.push(<g key="py"><line x1={x} y1={tailY} x2={x} y2={y} stroke={arrowColor} strokeWidth="2" markerEnd="url(#arrowhead-pink)" /><text x={x + 5} y={tailY} fill={arrowColor} fontSize="10" textAnchor="start">{Math.abs(load.magnitudeY).toFixed(1)}</text></g>);
+      }
+      if (Math.abs(load.moment || 0) > 0.001) {
+        const isCCW = (load.moment || 0) > 0;
+        const d = isCCW ? "M 15 0 A 15 15 0 1 0 0 -15" : "M 15 0 A 15 15 0 1 1 0 -15";
+        elements.push(
+          <g key="pm" transform={`translate(${x}, ${y})`}>
+            <path d={d} fill="none" stroke={momentColor} strokeWidth="1.5" markerEnd="url(#arrowhead-moment)" />
+            <text x="18" y="-18" fill={momentColor} fontSize="9" fontWeight="bold">{load.moment}</text>
+          </g>
+        );
       }
       return <g key={load.id}>{elements}</g>;
     }
@@ -337,6 +369,7 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
           <defs>
             <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="#ef4444" /></marker>
             <marker id="arrowhead-pink" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="#f472b6" /></marker>
+            <marker id="arrowhead-moment" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="#f59e0b" /></marker>
           </defs>
           <g>
             {model.members.map(m => renderMember(m))}
@@ -378,19 +411,29 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
                 const tailY = isUp ? p.y + 40 : p.y - 40;
                 elements.push(<g key={`fy-${load.id}`}><line x1={p.x} y1={tailY} x2={p.x} y2={p.y} stroke="#ef4444" strokeWidth="2" markerEnd="url(#arrowhead)" /><text x={p.x + 4} y={tailY + (isUp ? 10 : -4)} fill="#ef4444" fontSize="9">{Math.abs(load.magnitudeY)}</text></g>);
               }
+              if (Math.abs(load.moment || 0) > 0.001) {
+                const isCCW = (load.moment || 0) > 0;
+                const d = isCCW ? "M 18 0 A 18 18 0 1 0 0 -18" : "M 18 0 A 18 18 0 1 1 0 -18";
+                elements.push(
+                  <g key={`m-${load.id}`} transform={`translate(${p.x}, ${p.y})`}>
+                    <path d={d} fill="none" stroke="#f59e0b" strokeWidth="2" markerEnd="url(#arrowhead-moment)" />
+                    <text x="22" y="-22" fill="#f59e0b" fontSize="9" fontWeight="bold">{load.moment}</text>
+                  </g>
+                );
+              }
               return elements;
             })}
           </g>
         </svg>
 
-        <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-          <button onClick={() => setScale(s => Math.min(150, s * 1.2))} className="p-2 bg-slate-800 text-slate-300 hover:text-white rounded shadow-lg border border-slate-700">
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-10">
+          <button onClick={() => setScale(s => Math.min(150, s * 1.2))} className="p-2 bg-slate-800/80 backdrop-blur-sm text-slate-300 hover:text-white rounded-lg shadow-lg border border-slate-700 transition-all active:scale-95">
             <ZoomIn size={20} />
           </button>
-          <button onClick={() => setScale(s => Math.max(0.001, s / 1.2))} className="p-2 bg-slate-800 text-slate-300 hover:text-white rounded shadow-lg border border-slate-700">
+          <button onClick={() => setScale(s => Math.max(0.001, s / 1.2))} className="p-2 bg-slate-800/80 backdrop-blur-sm text-slate-300 hover:text-white rounded-lg shadow-lg border border-slate-700 transition-all active:scale-95">
             <ZoomOut size={20} />
           </button>
-          <button onClick={centerStructure} className="p-2 bg-slate-800 text-slate-300 hover:text-white rounded shadow-lg border border-slate-700">
+          <button onClick={centerStructure} className="p-2 bg-slate-800/80 backdrop-blur-sm text-slate-300 hover:text-white rounded-lg shadow-lg border border-slate-700 transition-all active:scale-95">
             <Maximize size={20} />
           </button>
         </div>

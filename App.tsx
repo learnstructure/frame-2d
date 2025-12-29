@@ -1,8 +1,10 @@
+
 import React, { useState } from 'react';
-import { Play, FileText, Sparkles, Loader2, MessageSquare, Menu } from 'lucide-react';
+import { Play, FileText, Sparkles, Loader2, Info, Menu } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import StructureCanvas from './components/StructureCanvas';
 import ChatModal from './components/ChatModal';
+import DeveloperModal from './components/DeveloperModal';
 import { StructureModel, AnalysisResults } from './frame/types';
 import { analyzeStructure } from './frame/solver';
 import { generateReport } from './services/reportGenerator';
@@ -19,6 +21,7 @@ const App = () => {
 
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isDevModalOpen, setIsDevModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [logoError, setLogoError] = useState(false);
@@ -98,7 +101,7 @@ const App = () => {
               </div>
             )}
           </div>
-          <h1 className="text-lg md:text-2xl font-bold truncate">
+          <h1 className="text-lg md:text-2xl font-bold truncate cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setIsDevModalOpen(true)}>
             <span className="text-blue-400">Structure</span><span className="text-emerald-400">Realm</span>
           </h1>
         </div>
@@ -130,6 +133,14 @@ const App = () => {
           >
             <Sparkles size={16} className="md:w-[18px] md:h-[18px] group-hover:animate-spin" />
             <span className="hidden md:inline">Ask AI</span>
+          </button>
+          <button
+            onClick={() => setIsDevModalOpen(true)}
+            className="px-2.5 py-1.5 md:px-4 md:py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-400 hover:text-white rounded font-medium transition-all flex items-center justify-center gap-2 text-xs md:text-base"
+            title="Developer Details"
+          >
+            <Info size={18} />
+            <span className="hidden md:inline">Info</span>
           </button>
         </div>
       </header>
@@ -163,12 +174,16 @@ const App = () => {
         </div>
       </main>
 
-      {/* Chat Modal */}
+      {/* Modals */}
       <ChatModal
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         model={model}
         initialResults={analysisResults}
+      />
+      <DeveloperModal
+        isOpen={isDevModalOpen}
+        onClose={() => setIsDevModalOpen(false)}
       />
     </div>
   );
