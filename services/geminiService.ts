@@ -1,13 +1,19 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { StructureModel, AnalysisResults } from "../frame/types";
 
+export interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export const analyzeStructureWithAI = async (
   model: StructureModel,
-  userQuery?: string,
+  history: Message[],
   analysisResults?: AnalysisResults
 ) => {
   if (!process.env.API_KEY) {
-    return "### API Key Missing\n\nIt looks like you haven't configured your Google Gemini API key yet.\n\n1. Create a `.env` file in your project root.\n2. Add `API_KEY=your_actual_key_here`.\n3. Restart the server.";
+    return "### API Key Missing\n\nIt looks like you haven't configured your Google Gemini API key yet.";
   }
 
   try {
@@ -21,7 +27,6 @@ export const analyzeStructureWithAI = async (
         type: m.type,
         start: m.startNodeId,
         end: m.endNodeId,
-        // Critical properties for stiffness
         E: m.eModulus?.toExponential(2),
         A: m.area?.toExponential(4),
         I: m.momentInertia?.toExponential(6),
@@ -31,87 +36,75 @@ export const analyzeStructureWithAI = async (
       loads: model.loads
     };
 
-    let context = `Structure Definition (Engineering Model):\n${JSON.stringify(engineeredModel, null, 2)}\n\n`;
+    let structuralContext = `CURRENT STRUCTURAL MODEL:\n${JSON.stringify(engineeredModel, null, 2)}\n\n`;
 
-    // 2. Serialize Results with FORCES and MATRICES
     if (analysisResults) {
       if (analysisResults.isStable) {
-        // Calculate max displacement for context summary
-        let maxDisp = 0;
-        let maxNode = "none";
-        const dispData: Record<string, string> = {};
-
-        Object.entries(analysisResults.displacements).forEach(([nodeId, d]) => {
-          const mag = Math.sqrt(d.x ** 2 + d.y ** 2);
-          if (mag > maxDisp) {
-            maxDisp = mag;
-            maxNode = nodeId;
-          }
-          dispData[nodeId] = `[dx:${d.x.toExponential(3)}, dy:${d.y.toExponential(3)}, rad:${d.rotation.toExponential(3)}]`;
-        });
-
-        context += `Analysis Results (FEM):\n`;
-        context += `- Status: Stable\n`;
-        context += `- Max Displacement: ${maxDisp.toExponential(3)} at Node ${maxNode}\n\n`;
-
-        context += `Nodal Displacements (dx, dy, rotation):\n${JSON.stringify(dispData, null, 2)}\n\n`;
-
-        context += `Support Reactions (Fx, Fy, Moment):\n${JSON.stringify(analysisResults.reactions, null, 2)}\n\n`;
-
-        // Member Forces are critical for internal checks
-        context += `Member Internal Forces (Local Coordinates):\n`;
-        context += `Note: fx=Axial (+=Tension), fy=Shear, moment=Bending\n`;
-        context += `${JSON.stringify(analysisResults.memberForces, null, 2)}\n\n`;
-
-        // Stiffness Matrix (K)
-        if (analysisResults.stiffnessMatrix) {
-          if (model.nodes.length <= 8) {
-            context += `Global Stiffness Matrix (K) [Size: ${analysisResults.stiffnessMatrix.length}x${analysisResults.stiffnessMatrix.length}]:\n`;
-            context += JSON.stringify(analysisResults.stiffnessMatrix);
-            context += `\n\n`;
-          } else {
-            context += `Global Stiffness Matrix (K): [Omitted due to size: ${analysisResults.stiffnessMatrix.length}x${analysisResults.stiffnessMatrix.length}]\n\n`;
-          }
-        }
-
+        structuralContext += `ANALYSIS RESULTS (FEM):\n`;
+        structuralContext += `- Nodal Displacements: ${JSON.stringify(analysisResults.displacements)}\n`;
+        structuralContext += `- Support Reactions: ${JSON.stringify(analysisResults.reactions)}\n`;
+        structuralContext += `- Member Internal Forces: ${JSON.stringify(analysisResults.memberForces)}\n\n`;
       } else {
-        context += `Analysis Error: ${analysisResults.message}\n\n`;
+        structuralContext += `ANALYSIS FAILED: ${analysisResults.message}\n\n`;
       }
     }
 
-    const prompt = `
-      You are an expert structural engineer assistant for "StructureRealm".
-      
-      Your goal is to provide precise, technical, and quantitative answers based on the provided FEM data.
-      
-      App Context:
-      - 2D Matrix Stiffness Method Solver.
-      - Units are consistent based on user input (typically SI: N, m, Pa or Imperial: lb, in, psi).
-      
-      ENGINEERING DATA:
-      ${context}
-      
-      ${userQuery ? `User Question: "${userQuery}"` : 'Please provide a detailed structural assessment. Audit the stiffness, check the load path, and interpret the member forces.'}
-      
-      Guidelines:
-      1. **Be Quantitative:** Cite specific force values, displacements, and node IDs in your explanation.
-      2. **Interpret Forces:** Explain what the axial/shear/moment values imply (e.g., "Member m1 is in significant compression...").
-      3. **Check Stiffness:** If the stiffness matrix is provided, briefly comment on its diagonal dominance or condition if asked.
-      4. **Stability:** If unstable, analyze the support conditions or mechanism.
-      5. Use Markdown for formatting tables or math.
+    const devProfile = `
+      DEVELOPER IDENTITY (CRITICAL):
+      - Creator: Abinash Mandal
+      - Role: PhD Researcher and Student at the University of Nevada, Reno (UNR).
+      - LinkedIn: https://www.linkedin.com/in/abinash-mandal-90132b238/
+      - GitHub: https://github.com/learnstructure
+      - Email: abinashmandal33486@gmail.com
+      - Note: Do NOT provide links to other Vercel or personal profiles you might find online. Only use the ones provided above.
     `;
+
+    const appManual = `
+      APP NAVIGATION & USAGE GUIDE:
+      1. Sidebar Editor: Used to add Nodes, Members, Supports, and Loads. 
+         - Inputs support math expressions (e.g., "2*sin(45)" or "200e9").
+      2. Header Actions:
+         - 'Analyze' (Play Button): Runs the Matrix Stiffness solver.
+         - 'Report' (File Button): Generates a PDF summary.
+         - 'Ask AI' (Sparkles): Opens this assistant.
+         - 'Info' (Info Button): Shows information about Abinash Mandal.
+      3. Canvas: Shows visualization. Blue lines are Beams, Yellow dashed are Trusses, Green zig-zags are Springs.
+    `;
+
+    const systemInstruction = `
+      You are the "StructureRealm" Engineering AI.
+      
+      ${devProfile}
+
+      ROLE:
+      Expert structural analyst and app guide. You help users understand their structural designs and how to use the app features.
+      
+      GUIDELINES:
+      - If asked "Who created this app?", always refer to Abinash Mandal at UNR and provide his specific LinkedIn/GitHub links from the identity section.
+      - Always refer to specific Node IDs (n1, n2) and Member IDs (m1).
+      - Interpret internal forces: explain compression (negative axial), tension (positive axial), and bending.
+      - If the model is unstable, check if they have enough supports (need 3 reaction components for 2D stability).
+      
+      ${appManual}
+      ${structuralContext}
+    `;
+
+    const contents = history.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }]
+    }));
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: prompt,
+      contents: contents,
       config: {
-        systemInstruction: "You are a senior structural analyst. You analyze JSON structural models and stiffness matrices to give expert engineering advice.",
+        systemInstruction: systemInstruction,
       }
     });
 
     return response.text || "No response text generated.";
   } catch (error) {
     console.error("AI Analysis failed:", error);
-    return "Error generating analysis. Please check your network connection and API key quota.";
+    return "Error generating analysis. Please check your connection.";
   }
 };
