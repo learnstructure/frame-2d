@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Bot, Sparkles, User, Loader2, Zap, Clock, AlertTriangle } from 'lucide-react';
+import { X, Send, Bot, Sparkles, User, Loader2, Zap, AlertTriangle } from 'lucide-react';
 import { analyzeStructureWithAI } from '../services/geminiService';
 import { analyzeStructureWithGroq } from '../services/groqService';
 import { analyzeStructure } from '../frame/solver';
@@ -47,7 +47,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
 
   // Cooldown Timer Logic
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: any;
     if (cooldown > 0) {
       interval = setInterval(() => {
         setCooldown((prev) => Math.max(0, prev - 1000));
@@ -202,8 +202,8 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, initialRe
                 {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
               <div className={`max-w-[80%] rounded-lg p-3 text-sm leading-relaxed ${msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-800 text-slate-200 border border-slate-700'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-800 text-slate-200 border border-slate-700'
                 }`}>
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>

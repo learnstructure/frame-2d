@@ -13,19 +13,68 @@ export const analyzeStructureWithAI = async (
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    // Filter circular references if any, or just pick essential data to save tokens
-    const simplifiedModel = {
-      nodes: model.nodes.length,
-      members: model.members.map(m => ({ id: m.id, type: m.type, start: m.startNodeId, end: m.endNodeId })),
+    // 1. Serialize Model with ENGINEERING PROPERTIES
+    const engineeredModel = {
+      nodes: model.nodes,
+      members: model.members.map(m => ({
+        id: m.id,
+        type: m.type,
+        start: m.startNodeId,
+        end: m.endNodeId,
+        // Critical properties for stiffness
+        E: m.eModulus?.toExponential(2),
+        A: m.area?.toExponential(4),
+        I: m.momentInertia?.toExponential(6),
+        k: m.springConstant
+      })),
       supports: model.supports,
       loads: model.loads
     };
 
-    let context = `Structure Definition (JSON):\n${JSON.stringify(simplifiedModel, null, 2)}\n\n`;
+    let context = `Structure Definition (Engineering Model):\n${JSON.stringify(engineeredModel, null, 2)}\n\n`;
 
+    // 2. Serialize Results with FORCES and MATRICES
     if (analysisResults) {
       if (analysisResults.isStable) {
-        context += `Calculated Results:\n- Max Displacement: Check displacements object.\n- Reactions: ${JSON.stringify(analysisResults.reactions)}\n\n`;
+        // Calculate max displacement for context summary
+        let maxDisp = 0;
+        let maxNode = "none";
+        const dispData: Record<string, string> = {};
+
+        Object.entries(analysisResults.displacements).forEach(([nodeId, d]) => {
+          const mag = Math.sqrt(d.x ** 2 + d.y ** 2);
+          if (mag > maxDisp) {
+            maxDisp = mag;
+            maxNode = nodeId;
+          }
+          dispData[nodeId] = `[dx:${d.x.toExponential(3)}, dy:${d.y.toExponential(3)}, rad:${d.rotation.toExponential(3)}]`;
+        });
+
+        context += `Analysis Results (FEM):\n`;
+        context += `- Status: Stable\n`;
+        context += `- Max Displacement: ${maxDisp.toExponential(3)} at Node ${maxNode}\n\n`;
+
+        context += `Nodal Displacements (dx, dy, rotation):\n${JSON.stringify(dispData, null, 2)}\n\n`;
+
+        context += `Support Reactions (Fx, Fy, Moment):\n${JSON.stringify(analysisResults.reactions, null, 2)}\n\n`;
+
+        // Member Forces are critical for internal checks
+        context += `Member Internal Forces (Local Coordinates):\n`;
+        context += `Note: fx=Axial (+=Tension), fy=Shear, moment=Bending\n`;
+        context += `${JSON.stringify(analysisResults.memberForces, null, 2)}\n\n`;
+
+        // Stiffness Matrix (K)
+        // Limit to small structures to avoid context window exhaustion
+        if (analysisResults.stiffnessMatrix) {
+          if (model.nodes.length <= 8) {
+            context += `Global Stiffness Matrix (K) [Size: ${analysisResults.stiffnessMatrix.length}x${analysisResults.stiffnessMatrix.length}]:\n`;
+            context += JSON.stringify(analysisResults.stiffnessMatrix);
+            context += `\n\n`;
+          } else {
+            context += `Global Stiffness Matrix (K): [Omitted due to size: ${analysisResults.stiffnessMatrix.length}x${analysisResults.stiffnessMatrix.length}]\n\n`;
+          }
+        }
+
       } else {
         context += `Analysis Error: ${analysisResults.message}\n\n`;
       }
@@ -34,31 +83,30 @@ export const analyzeStructureWithAI = async (
     const prompt = `
       You are an expert structural engineer assistant for "StructureRealm".
       
-      App Interface Context (How users use this app):
-      - Users interact with a GUI (Graphical User Interface), NOT code.
-      - Sidebar: Users define Nodes (coordinates), Members (connecting nodes), Supports (pin/roller/fixed), and Loads here.
-      - Canvas: The central area displays the 2D structure visualization.
-      - Analyze Button: Users click the "Play" icon/Analyze button in the header to run the matrix stiffness solver.
-      - Report: Users can generate a PDF report after analysis.
-
-      Context:
+      Your goal is to provide precise, technical, and quantitative answers based on the provided FEM data.
+      
+      App Context:
+      - 2D Matrix Stiffness Method Solver.
+      - Units are consistent based on user input (typically SI: N, m, Pa or Imperial: lb, in, psi).
+      
+      ENGINEERING DATA:
       ${context}
       
-      ${userQuery ? `User Question: "${userQuery}"` : 'Please provide a structural assessment. If the numerical analysis succeeded, explain the load path and reaction forces. If it failed, explain why the structure might be unstable.'}
+      ${userQuery ? `User Question: "${userQuery}"` : 'Please provide a detailed structural assessment. Audit the stiffness, check the load path, and interpret the member forces.'}
       
       Guidelines:
-      1. Be concise and professional.
-      2. Use Markdown.
-      3. If asked "how to use", explain the GUI steps (Sidebar -> Add Nodes/Members -> Analyze), DO NOT tell them to write JSON.
-      4. If the analysis failed (unstable), suggest where to add supports.
-      5. Highlight maximum reactions if available.
+      1. **Be Quantitative:** Cite specific force values, displacements, and node IDs in your explanation.
+      2. **Interpret Forces:** Explain what the axial/shear/moment values imply (e.g., "Member m1 is in significant compression...").
+      3. **Check Stiffness:** If the stiffness matrix is provided, briefly comment on its diagonal dominance or condition if asked.
+      4. **Stability:** If unstable, analyze the support conditions or mechanism.
+      5. Use Markdown for formatting tables or math.
     `;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
-        systemInstruction: "You are StructureRealm AI. Use the provided JSON data and numerical results to answer structural engineering questions accurately. Do not ask users to write code.",
+        systemInstruction: "You are a senior structural analyst. You analyze JSON structural models and stiffness matrices to give expert engineering advice.",
       }
     });
 
