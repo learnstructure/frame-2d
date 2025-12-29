@@ -21,5 +21,9 @@ export default defineConfig(({ mode }) => {
       'process.env.FIREBASE_APP_ID': JSON.stringify(env.VITE_FIREBASE_APP_ID),
       'process.env.FIREBASE_MEASUREMENT_ID': JSON.stringify(env.VITE_FIREBASE_MEASUREMENT_ID),
     },
+    server: {
+      host: true,
+      port: 3000
+    }
   };
 });

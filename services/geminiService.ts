@@ -64,7 +64,6 @@ export const analyzeStructureWithAI = async (
         context += `${JSON.stringify(analysisResults.memberForces, null, 2)}\n\n`;
 
         // Stiffness Matrix (K)
-        // Limit to small structures to avoid context window exhaustion
         if (analysisResults.stiffnessMatrix) {
           if (model.nodes.length <= 8) {
             context += `Global Stiffness Matrix (K) [Size: ${analysisResults.stiffnessMatrix.length}x${analysisResults.stiffnessMatrix.length}]:\n`;
@@ -103,7 +102,7 @@ export const analyzeStructureWithAI = async (
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: "You are a senior structural analyst. You analyze JSON structural models and stiffness matrices to give expert engineering advice.",

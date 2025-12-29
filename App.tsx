@@ -33,11 +33,9 @@ const App = () => {
     const results = analyzeStructure(model);
     setAnalysisResults(results);
 
-    // Optional: Alert if unstable, or let the canvas visualizer handle it
     if (!results.isStable) {
       alert(`Analysis Failed: ${results.message}`);
     } else {
-      // Track successful analysis in Firestore
       incrementAnalysisCount();
     }
   };
@@ -50,12 +48,11 @@ const App = () => {
 
     setIsGeneratingReport(true);
     try {
-      // Capture canvas image
       const element = document.getElementById('structure-canvas-container');
       let imageUri = undefined;
 
       if (element) {
-        // @ts-ignore - backgroundColor is valid in runtime but types might conflict
+        // @ts-ignore
         const canvas = await html2canvas(element, { backgroundColor: '#0f172a' } as any);
         imageUri = canvas.toDataURL('image/png');
       }
@@ -70,25 +67,23 @@ const App = () => {
   };
 
   const handleModelChange: React.Dispatch<React.SetStateAction<StructureModel>> = (arg) => {
-    // Clear results if model changes
     setAnalysisResults(null);
     setModel(arg);
   };
 
   return (
-    <div className="h-full min-h-[100dvh] md:h-screen md:overflow-hidden w-screen flex flex-col bg-[#0f172a] text-slate-100 font-sans overflow-y-auto">
-      {/* Header */}
-      <header className="h-16 border-b border-slate-700 bg-[#0f172a] px-4 md:px-6 flex items-center justify-between z-20 shadow-lg flex-shrink-0 sticky top-0">
+    <div className="fixed inset-0 flex flex-col bg-[#0f172a] text-slate-100 font-sans overflow-hidden">
+      {/* Header - Fixed height */}
+      <header className="h-16 border-b border-slate-700 bg-[#0f172a] px-4 md:px-6 flex items-center justify-between z-20 shadow-lg flex-shrink-0">
         <div className="flex items-center gap-3">
-          {/* Mobile Menu Toggle */}
           <button
-            className="md:hidden text-slate-300 hover:text-white"
+            className="lg:hidden text-slate-300 hover:text-white p-2"
             onClick={() => setIsSidebarOpen(true)}
+            aria-label="Open Editor"
           >
             <Menu size={24} />
           </button>
 
-          {/* Logo Image */}
           <div className="p-1 rounded-lg shadow-lg shadow-blue-900/20 bg-white/5 border border-white/10 hidden sm:block">
             {!logoError ? (
               <img
@@ -103,7 +98,7 @@ const App = () => {
               </div>
             )}
           </div>
-          <h1 className="text-xl md:text-2xl font-bold truncate">
+          <h1 className="text-lg md:text-2xl font-bold truncate">
             <span className="text-blue-400">Structure</span><span className="text-emerald-400">Realm</span>
           </h1>
         </div>
@@ -112,56 +107,47 @@ const App = () => {
           <button
             onClick={handleAnalyze}
             disabled={!canAnalyze}
-            title={!canAnalyze ? "Add at least one member and one support to analyze" : "Run Structural Analysis"}
-            className={`px-3 py-2 md:px-4 rounded font-semibold flex items-center gap-2 transition-all ${canAnalyze
-                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-900/50 active:translate-y-0.5"
-                : "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed opacity-50 shadow-none"
+            title={!canAnalyze ? "Add at least one member and one support" : "Run Structural Analysis"}
+            className={`px-3 py-1.5 md:py-2 md:px-4 rounded font-semibold flex items-center gap-2 transition-all text-xs md:text-base ${canAnalyze
+                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg active:translate-y-0.5"
+                : "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed opacity-50"
               }`}
           >
-            <Play size={18} fill={canAnalyze ? "currentColor" : "none"} />
+            <Play size={16} className="md:w-[18px] md:h-[18px]" fill={canAnalyze ? "currentColor" : "none"} />
             <span className="hidden sm:inline">Analyze</span>
           </button>
           <button
             onClick={handleReport}
             disabled={isGeneratingReport || !analysisResults}
-            className="px-3 py-2 md:px-4 bg-slate-800 border border-slate-600 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-300 rounded font-medium flex items-center gap-2 transition-all"
-            title="Generate Report"
+            className="px-3 py-1.5 md:py-2 md:px-4 bg-slate-800 border border-slate-600 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-300 rounded font-medium flex items-center gap-2 transition-all text-xs md:text-base"
           >
-            {isGeneratingReport ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />}
+            {isGeneratingReport ? <Loader2 size={16} className="animate-spin md:w-[18px] md:h-[18px]" /> : <FileText size={16} className="md:w-[18px] md:h-[18px]" />}
             <span className="hidden sm:inline">Report</span>
           </button>
           <button
             onClick={() => setIsChatOpen(true)}
-            className="px-3 py-2 md:px-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded font-semibold flex items-center gap-2 transition-all shadow-lg hover:shadow-blue-900/50 group"
-            title="Ask AI"
+            className="px-3 py-1.5 md:py-2 md:px-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded font-semibold flex items-center gap-2 transition-all shadow-lg group text-xs md:text-base"
           >
-            <Sparkles size={18} className="group-hover:animate-spin" />
+            <Sparkles size={16} className="md:w-[18px] md:h-[18px] group-hover:animate-spin" />
             <span className="hidden md:inline">Ask AI</span>
           </button>
-          <a
-            href="mailto:abinashmandal33486@gmail.com?subject=StructureRealm Feedback"
-            className="flex px-3 py-2 md:px-4 bg-slate-800 border border-slate-600 hover:bg-slate-700 hover:text-white text-slate-300 rounded font-medium items-center gap-2 transition-all shadow-sm"
-            title="Send Feedback via Email"
-          >
-            <MessageSquare size={18} /> <span className="hidden lg:inline">Feedback</span>
-          </a>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col md:flex-row relative min-h-[calc(100dvh-4rem)]">
-        {/* Mobile Sidebar Overlay */}
+      {/* Main Content Area - Ensuring overflow hidden and min-h-0 for proper flex behavior */}
+      <main className="flex-1 flex flex-col lg:flex-row relative min-h-0 overflow-hidden">
+        {/* Overlay */}
         {isSidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
+            className="fixed inset-0 bg-black/60 z-30 lg:hidden backdrop-blur-sm animate-in fade-in duration-200"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
 
-        {/* Sidebar Container - Responsive Drawer */}
+        {/* Sidebar */}
         <div className={`
-           fixed inset-y-0 left-0 z-30 w-80 bg-[#111827] transform transition-transform duration-300 shadow-2xl
-           md:relative md:translate-x-0 md:shadow-none md:border-r md:border-slate-700
+           fixed inset-y-0 left-0 z-40 w-80 bg-[#111827] transform transition-transform duration-300 ease-in-out shadow-2xl
+           lg:relative lg:translate-x-0 lg:shadow-none lg:border-r lg:border-slate-700 lg:z-10
            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}>
           <Sidebar
@@ -171,8 +157,8 @@ const App = () => {
           />
         </div>
 
-        {/* Canvas takes remaining space, ensure min height on mobile for scrolling */}
-        <div className="flex-1 h-[60vh] md:h-auto min-h-[500px] flex flex-col">
+        {/* Canvas & Results Area - min-h-0 allows this container to shrink to fit parent */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden relative">
           <StructureCanvas model={model} analysisResults={analysisResults} />
         </div>
       </main>
