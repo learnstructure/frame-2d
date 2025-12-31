@@ -85,10 +85,10 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
   const [tempMember, setTempMember] = useState({
     startNodeId: '',
     endNodeId: '',
-    e: 200e9,
-    a: 0.01,
-    i: 0.0001,
-    k: 100,
+    e: 200e6,
+    a: 3e-2,
+    i: 5e-4,
+    k: 1000,
     type: 'beam' as MemberType
   });
   const [tempSupport, setTempSupport] = useState({ nodeId: '', type: SupportType.PIN });
@@ -98,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
     targetId: '',
     type: 'point',
     magX: 0,
-    magY: -10000,
+    magY: -10,
     moment: 0,
     location: 0
   });
@@ -204,8 +204,8 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
     <button
       onClick={() => setActiveTab(tab)}
       className={`flex-1 py-3 text-xs font-bold uppercase border-b-2 transition-colors ${activeTab === tab
-          ? 'border-cyan-500 text-cyan-400'
-          : 'border-transparent text-slate-400 hover:text-slate-200'
+        ? 'border-cyan-500 text-cyan-400'
+        : 'border-transparent text-slate-400 hover:text-slate-200'
         }`}
     >
       {label}
@@ -486,6 +486,26 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                   }
                 </select>
               </div>
+              {loadCategory === 'member' && (
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Load Distribution</label>
+                  <div className="flex gap-2">
+                    <button
+                      className={`flex-1 py-1 text-xs border rounded ${tempLoad.type === 'point' ? 'bg-cyan-900/40 border-cyan-500 text-cyan-400' : 'border-slate-600 text-slate-400'}`}
+                      onClick={() => setTempLoad({ ...tempLoad, type: 'point' })}
+                    >
+                      Point
+                    </button>
+                    <button
+                      className={`flex-1 py-1 text-xs border rounded ${tempLoad.type === 'distributed' ? 'bg-cyan-900/40 border-cyan-500 text-cyan-400' : 'border-slate-600 text-slate-400'}`}
+                      onClick={() => setTempLoad({ ...tempLoad, type: 'distributed' })}
+                    >
+                      Distributed
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
                   <label className="text-xs text-slate-400">Fx</label>
@@ -512,6 +532,16 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                   />
                 </div>
               </div>
+              {loadCategory === 'member' && tempLoad.type === 'point' && (
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Distance from Start</label>
+                  <SmartInput
+                    value={tempLoad.location}
+                    onChange={val => setTempLoad({ ...tempLoad, location: val })}
+                    className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none"
+                  />
+                </div>
+              )}
               <button
                 onClick={addLoad}
                 disabled={!tempLoad.targetId}
@@ -552,3 +582,4 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
 };
 
 export default Sidebar;
+

@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, FileText, Sparkles, Loader2, Info, Menu } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import StructureCanvas from './components/StructureCanvas';
@@ -11,12 +10,32 @@ import { generateReport } from './services/reportGenerator';
 import { incrementAnalysisCount } from './services/firebase';
 import html2canvas from 'html2canvas';
 
+const STORAGE_KEY = 'structure_realm_model_v1';
+
 const App = () => {
-  const [model, setModel] = useState<StructureModel>({
-    nodes: [],
-    members: [],
-    supports: [],
-    loads: []
+  // Initialize state from local storage if available
+  const [model, setModel] = useState<StructureModel>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Basic validation: Ensure top-level arrays exist
+        return {
+          nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
+          members: Array.isArray(parsed.members) ? parsed.members : [],
+          supports: Array.isArray(parsed.supports) ? parsed.supports : [],
+          loads: Array.isArray(parsed.loads) ? parsed.loads : []
+        };
+      } catch (e) {
+        console.error("Failed to load saved model:", e);
+      }
+    }
+    return {
+      nodes: [],
+      members: [],
+      supports: [],
+      loads: []
+    };
   });
 
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
@@ -25,6 +44,11 @@ const App = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [logoError, setLogoError] = useState(false);
+
+  // Persistence effect: Save model to local storage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(model));
+  }, [model]);
 
   const canAnalyze = model.members.length > 0 && model.supports.length > 0;
 
@@ -118,8 +142,8 @@ const App = () => {
             disabled={!canAnalyze}
             title={!canAnalyze ? "Add at least one member and one support" : "Run Structural Analysis"}
             className={`px-3 py-1.5 md:py-2 md:px-4 rounded font-semibold flex items-center gap-2 transition-all text-xs md:text-base ${canAnalyze
-                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg active:translate-y-0.5"
-                : "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed opacity-50"
+              ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg active:translate-y-0.5"
+              : "bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed opacity-50"
               }`}
           >
             <Play size={16} className="md:w-[18px] md:h-[18px]" fill={canAnalyze ? "currentColor" : "none"} />

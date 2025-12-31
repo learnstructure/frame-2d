@@ -59,11 +59,11 @@ export const analyzeStructureWithGroq = async (
          - 'type': 'nodal_point', 'member_point', or 'member_distributed'
          - 'nodeId': (required for nodal_point) 
          - 'memberId': (required for member_point/member_distributed)
-         - 'magnitudeX': horizontal force in N (positive is right)
-         - 'magnitudeY': vertical force in N (positive is up)
-         - 'moment': moment in Nm (positive is counter-clockwise)
+         - 'magnitudeX': horizontal force (positive is right)
+         - 'magnitudeY': vertical force (positive is up)
+         - 'moment': moment (positive is counter-clockwise)
          - 'location': distance from start node (only for member_point)
-      4. Coordinates: x, y in meters. Forces: Newtons (N).
+      4. Units as specified by the user. Otherwise x, y in meters & Forces in kiloNewtons (kN).
       5. Always provide the FULL model state in the payload.
     `;
 

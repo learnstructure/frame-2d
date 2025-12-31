@@ -24,7 +24,7 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, setModel,
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [provider, setProvider] = useState<AIProvider>('groq');
+  const [provider, setProvider] = useState<AIProvider>('gemini');
   const scrollRef = useRef<HTMLDivElement>(null);
   const [results, setResults] = useState<AnalysisResults | null>(null);
   const lastManualModel = useRef<StructureModel | null>(null);
@@ -50,8 +50,8 @@ const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, model, setModel,
     if (isOpen && messages.length === 0) {
       const hasStructure = (model.nodes?.length ?? 0) > 0;
       const welcomeMsg = hasStructure
-        ? "Hi! I see your structural model. How can I help you analyze the forces or modify the design?"
-        : "Hi! I'm your structural analysis co-pilot. I can build structures for you—try saying 'Create a 10m simple beam with a point load'.";
+        ? "Hi! I see your structural model. How can I help you?"
+        : "Hi! I'm your structural analysis co-pilot. I can build structures for you—try saying 'Create a 10m simple beam with udl load of 20 kN/m'.";
 
       setMessages([{ role: 'assistant', content: welcomeMsg }]);
     }
