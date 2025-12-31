@@ -19,21 +19,21 @@ export const analyzeStructureWithAI = async (
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    // 1. Serialize Model with ENGINEERING PROPERTIES
+    // Normalize model for the AI to understand properties better using full names
     const engineeredModel = {
-      nodes: model.nodes,
-      members: model.members.map(m => ({
+      nodes: model.nodes || [],
+      members: (model.members || []).map(m => ({
         id: m.id,
         type: m.type,
-        start: m.startNodeId,
-        end: m.endNodeId,
-        E: m.eModulus?.toExponential(2),
-        A: m.area?.toExponential(4),
-        I: m.momentInertia?.toExponential(6),
-        k: m.springConstant
+        startNodeId: m.startNodeId,
+        endNodeId: m.endNodeId,
+        eModulus: m.eModulus,
+        area: m.area,
+        momentInertia: m.momentInertia,
+        springConstant: m.springConstant
       })),
-      supports: model.supports,
-      loads: model.loads
+      supports: model.supports || [],
+      loads: model.loads || []
     };
 
     let structuralContext = `CURRENT STRUCTURAL MODEL:\n${JSON.stringify(engineeredModel, null, 2)}\n\n`;
@@ -56,19 +56,30 @@ export const analyzeStructureWithAI = async (
       - LinkedIn: https://www.linkedin.com/in/abinash-mandal-90132b238/
       - GitHub: https://github.com/learnstructure
       - Email: abinashmandal33486@gmail.com
-      - Note: Do NOT provide links to other Vercel or personal profiles you might find online. Only use the ones provided above.
     `;
 
-    const appManual = `
-      APP NAVIGATION & USAGE GUIDE:
-      1. Sidebar Editor: Used to add Nodes, Members, Supports, and Loads. 
-         - Inputs support math expressions (e.g., "2*sin(45)" or "200e9").
-      2. Header Actions:
-         - 'Analyze' (Play Button): Runs the Matrix Stiffness solver.
-         - 'Report' (File Button): Generates a PDF summary.
-         - 'Ask AI' (Sparkles): Opens this assistant.
-         - 'Info' (Info Button): Shows information about Abinash Mandal.
-      3. Canvas: Shows visualization. Blue lines are Beams, Yellow dashed are Trusses, Green zig-zags are Springs.
+    const modelingAgentInstructions = `
+      MODELING AGENT CAPABILITIES:
+      You can directly build or modify structural models. To do so, you MUST include a JSON block in your response.
+      ALWAYS wrap the JSON in markdown code blocks:
+      \`\`\`json
+      {"action": "SET_MODEL", "payload": {"nodes": [...], "members": [...], "supports": [...], "loads": [...]}}
+      \`\`\`
+      
+      CRITICAL SCHEMA RULES (MANDATORY):
+      1. Members MUST use keys: 'id', 'type' ('beam'|'truss'|'spring'), 'startNodeId', 'endNodeId'.
+      2. Support MUST use keys: 'id', 'nodeId', 'type' ('pin'|'roller'|'fixed').
+      3. Load MUST use EXACT keys: 
+         - 'id': unique string (e.g., 'l1')
+         - 'type': 'nodal_point', 'member_point', or 'member_distributed'
+         - 'nodeId': (required for nodal_point) 
+         - 'memberId': (required for member_point/member_distributed)
+         - 'magnitudeX': horizontal force in N (positive is right)
+         - 'magnitudeY': vertical force in N (positive is up)
+         - 'moment': moment in Nm (positive is counter-clockwise)
+         - 'location': distance from start node (only for member_point)
+      4. Coordinates: x, y in meters. Forces: Newtons (N).
+      5. Always provide the FULL model state in the payload.
     `;
 
     const systemInstruction = `
@@ -77,15 +88,10 @@ export const analyzeStructureWithAI = async (
       ${devProfile}
 
       ROLE:
-      Expert structural analyst and app guide. You help users understand their structural designs and how to use the app features.
+      Expert structural analyst and generative modeling agent.
       
-      GUIDELINES:
-      - If asked "Who created this app?", always refer to Abinash Mandal at UNR and provide his specific LinkedIn/GitHub links from the identity section.
-      - Always refer to specific Node IDs (n1, n2) and Member IDs (m1).
-      - Interpret internal forces: explain compression (negative axial), tension (positive axial), and bending.
-      - If the model is unstable, check if they have enough supports (need 3 reaction components for 2D stability).
+      ${modelingAgentInstructions}
       
-      ${appManual}
       ${structuralContext}
     `;
 

@@ -17,20 +17,21 @@ export const analyzeStructureWithGroq = async (
     }
 
     try {
+        // Normalize model for the AI to understand properties better using full names
         const engineeredModel = {
-            nodes: model.nodes,
-            members: model.members.map(m => ({
+            nodes: model.nodes || [],
+            members: (model.members || []).map(m => ({
                 id: m.id,
                 type: m.type,
-                start: m.startNodeId,
-                end: m.endNodeId,
-                E: m.eModulus?.toExponential(2),
-                A: m.area?.toExponential(4),
-                I: m.momentInertia?.toExponential(6),
-                k: m.springConstant
+                startNodeId: m.startNodeId,
+                endNodeId: m.endNodeId,
+                eModulus: m.eModulus,
+                area: m.area,
+                momentInertia: m.momentInertia,
+                springConstant: m.springConstant
             })),
-            supports: model.supports,
-            loads: model.loads
+            supports: model.supports || [],
+            loads: model.loads || []
         };
 
         let structuralContext = `CURRENT STRUCTURAL MODEL:\n${JSON.stringify(engineeredModel, null, 2)}\n\n`;
@@ -42,38 +43,49 @@ export const analyzeStructureWithGroq = async (
             structuralContext += `- Member Internal Forces: ${JSON.stringify(analysisResults.memberForces)}\n\n`;
         }
 
+        const modelingAgentInstructions = `
+      MODELING AGENT CAPABILITIES:
+      You can directly build or modify structural models. To do so, you MUST include a JSON block in your response.
+      ALWAYS wrap the JSON in markdown code blocks:
+      \`\`\`json
+      {"action": "SET_MODEL", "payload": {"nodes": [...], "members": [...], "supports": [...], "loads": [...]}}
+      \`\`\`
+      
+      CRITICAL SCHEMA RULES (MANDATORY):
+      1. Members MUST use keys: 'id', 'type' ('beam'|'truss'|'spring'), 'startNodeId', 'endNodeId'.
+      2. Support MUST use keys: 'id', 'nodeId', 'type' ('pin'|'roller'|'fixed').
+      3. Load MUST use EXACT keys: 
+         - 'id': unique string (e.g., 'l1')
+         - 'type': 'nodal_point', 'member_point', or 'member_distributed'
+         - 'nodeId': (required for nodal_point) 
+         - 'memberId': (required for member_point/member_distributed)
+         - 'magnitudeX': horizontal force in N (positive is right)
+         - 'magnitudeY': vertical force in N (positive is up)
+         - 'moment': moment in Nm (positive is counter-clockwise)
+         - 'location': distance from start node (only for member_point)
+      4. Coordinates: x, y in meters. Forces: Newtons (N).
+      5. Always provide the FULL model state in the payload.
+    `;
+
         const devProfile = `
-      DEVELOPER IDENTITY (MANDATORY):
+      DEVELOPER IDENTITY:
       - Creator: Abinash Mandal
       - Background: PhD Researcher & Student at University of Nevada, Reno (UNR).
       - LinkedIn: https://www.linkedin.com/in/abinash-mandal-90132b238/
-      - GitHub: https://github.com/learnstructure
-      - Email: abinashmandal33486@gmail.com
-      - Important: Do not mention other Vercel profiles or websites for this name. Use only the provided links.
-    `;
-
-        const appManual = `
-      APP USAGE GUIDE:
-      - Use the 'Sidebar' to define Node coordinates and Member properties.
-      - The 'Analyze' button in the top header is REQUIRED to calculate forces after changes.
-      - The 'Report' button exports everything to PDF.
-      - Math inputs: You can type "10/3" or "5e6" in coordinate or magnitude fields.
     `;
 
         const systemPrompt = `
       You are the expert structural engineer for "StructureRealm".
       
       ${devProfile}
+      ${modelingAgentInstructions}
 
-      CORE KNOWLEDGE:
-      ${appManual}
-      ${structuralContext}
-      
       TASK:
-      - If asked about the creator, provide details about Abinash Mandal (UNR researcher) using the links provided.
-      - Answer user questions about their specific structure.
-      - Be quantitative: Use the actual numbers from the context.
-      - Explain structural mechanics clearly.
+      - If asked to create, modify, or extend a structure, calculate the coordinates and return the JSON.
+      - Be precise with geometry.
+      - Explain your structural decisions.
+      
+      ${structuralContext}
     `;
 
         const groqMessages = [
@@ -93,8 +105,8 @@ export const analyzeStructureWithGroq = async (
             body: JSON.stringify({
                 messages: groqMessages,
                 model: "llama-3.3-70b-versatile",
-                temperature: 0.5,
-                max_tokens: 1500
+                temperature: 0.3,
+                max_tokens: 2000
             })
         });
 

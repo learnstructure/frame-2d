@@ -26,13 +26,11 @@ const App = () => {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
-  // Validation for enabling analysis
   const canAnalyze = model.members.length > 0 && model.supports.length > 0;
 
   const handleAnalyze = () => {
     if (!canAnalyze) return;
 
-    // Run the local solver
     const results = analyzeStructure(model);
     setAnalysisResults(results);
 
@@ -71,12 +69,20 @@ const App = () => {
 
   const handleModelChange: React.Dispatch<React.SetStateAction<StructureModel>> = (arg) => {
     setAnalysisResults(null);
-    setModel(arg);
+    if (typeof arg === 'function') {
+      setModel(prev => arg(prev));
+    } else {
+      setModel(arg);
+    }
+  };
+
+  const handleUpdateModelFromAI = (newModel: StructureModel) => {
+    setAnalysisResults(null);
+    setModel(newModel);
   };
 
   return (
     <div className="fixed inset-0 flex flex-col bg-[#0f172a] text-slate-100 font-sans overflow-hidden">
-      {/* Header - Fixed height */}
       <header className="h-16 border-b border-slate-700 bg-[#0f172a] px-4 md:px-6 flex items-center justify-between z-20 shadow-lg flex-shrink-0">
         <div className="flex items-center gap-3">
           <button
@@ -145,9 +151,7 @@ const App = () => {
         </div>
       </header>
 
-      {/* Main Content Area - Ensuring overflow hidden and min-h-0 for proper flex behavior */}
       <main className="flex-1 flex flex-col lg:flex-row relative min-h-0 overflow-hidden">
-        {/* Overlay */}
         {isSidebarOpen && (
           <div
             className="fixed inset-0 bg-black/60 z-30 lg:hidden backdrop-blur-sm animate-in fade-in duration-200"
@@ -155,7 +159,6 @@ const App = () => {
           />
         )}
 
-        {/* Sidebar */}
         <div className={`
            fixed inset-y-0 left-0 z-40 w-80 bg-[#111827] transform transition-transform duration-300 ease-in-out shadow-2xl
            lg:relative lg:translate-x-0 lg:shadow-none lg:border-r lg:border-slate-700 lg:z-10
@@ -168,17 +171,16 @@ const App = () => {
           />
         </div>
 
-        {/* Canvas & Results Area - min-h-0 allows this container to shrink to fit parent */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden relative">
           <StructureCanvas model={model} analysisResults={analysisResults} />
         </div>
       </main>
 
-      {/* Modals */}
       <ChatModal
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         model={model}
+        setModel={handleUpdateModelFromAI}
         initialResults={analysisResults}
       />
       <DeveloperModal

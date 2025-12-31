@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, ArrowRight, AlertCircle, X, Calculator } from 'lucide-react';
 import { StructureModel, SupportType, LoadType, MemberType } from '../frame/types';
@@ -17,8 +18,6 @@ const SmartInput = ({ value, onChange, className }: { value: number; onChange: (
 
   useEffect(() => {
     if (!isFocused) {
-      // If the value is very large or small, use generic string conversion
-      // ensuring we don't show NaN
       setText(isNaN(value) ? "0" : value.toString());
     }
   }, [value, isFocused]);
@@ -26,28 +25,18 @@ const SmartInput = ({ value, onChange, className }: { value: number; onChange: (
   const handleBlur = () => {
     setIsFocused(false);
     try {
-      // Sanitize: allow numbers, scientific notation (e/E), operators, parens, decimal
-      // Replace ^ with ** for power
       let expression = text.replace(/\^/g, '**');
-
-      // Strict regex to prevent arbitrary code execution
-      // Allowed: digits, ., +, -, *, /, (, ), e, E, space
       if (!/^[0-9eE\.\+\-\*\/\(\)\s]+$/.test(expression)) {
-        // Fallback for simple parse if regex fails (e.g. user pasted garbage)
         const validNum = parseFloat(text);
         if (!isNaN(validNum)) {
           onChange(validNum);
           setText(validNum.toString());
         } else {
-          setText(value.toString()); // Revert
+          setText(value.toString());
         }
         return;
       }
-
-      // Evaluate safe math expression
-      // eslint-disable-next-line no-new-func
       const result = new Function(`return (${expression})`)();
-
       if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
         onChange(result);
         setText(result.toString());
@@ -85,28 +74,33 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
   const [activeTab, setActiveTab] = useState<Tab>('nodes');
   const [error, setError] = useState<string | null>(null);
 
+  // Safely get arrays from model to prevent crashes if AI sends partial data
+  const nodes = model.nodes ?? [];
+  const members = model.members ?? [];
+  const supports = model.supports ?? [];
+  const loads = model.loads ?? [];
+
   // Temporary state
   const [tempNode, setTempNode] = useState({ x: 0, y: 0 });
   const [tempMember, setTempMember] = useState({
     startNodeId: '',
     endNodeId: '',
-    e: 29000, // Default to steel ksi
-    a: 10,
-    i: 200,
-    k: 1,
+    e: 200e9,
+    a: 0.01,
+    i: 0.0001,
+    k: 100,
     type: 'beam' as MemberType
   });
   const [tempSupport, setTempSupport] = useState({ nodeId: '', type: SupportType.PIN });
 
-  // Load state
   const [loadCategory, setLoadCategory] = useState<'node' | 'member'>('node');
   const [tempLoad, setTempLoad] = useState({
-    targetId: '', // nodeId or memberId
-    type: 'point', // 'point' | 'distributed' (for member)
+    targetId: '',
+    type: 'point',
     magX: 0,
-    magY: -10,
+    magY: -10000,
     moment: 0,
-    location: 0 // for member point load
+    location: 0
   });
 
   const showError = (msg: string) => {
@@ -115,20 +109,17 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
   };
 
   const addNode = () => {
-    // Validation: Check for duplicates
-    const exists = model.nodes.some(n =>
+    const exists = nodes.some(n =>
       Math.abs(n.x - tempNode.x) < 0.001 && Math.abs(n.y - tempNode.y) < 0.001
     );
-
     if (exists) {
       showError("A node already exists at these coordinates.");
       return;
     }
-
-    const id = `n${model.nodes.length + 1}`;
+    const id = `n${nodes.length + 1}`;
     setModel(prev => ({
       ...prev,
-      nodes: [...prev.nodes, { id, x: Number(tempNode.x), y: Number(tempNode.y) }]
+      nodes: [...(prev.nodes ?? []), { id, x: Number(tempNode.x), y: Number(tempNode.y) }]
     }));
   };
 
@@ -138,54 +129,44 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
       showError("Start and end nodes must be different.");
       return;
     }
-
-    // Validation: Check if member exists between these nodes
-    const exists = model.members.some(m =>
+    const exists = members.some(m =>
       (m.startNodeId === tempMember.startNodeId && m.endNodeId === tempMember.endNodeId) ||
       (m.startNodeId === tempMember.endNodeId && m.endNodeId === tempMember.startNodeId)
     );
-
     if (exists) {
       showError("A member already connects these two nodes.");
       return;
     }
-
-    const id = `m${model.members.length + 1}`;
-
-    // Construct member based on type
+    const id = `m${members.length + 1}`;
     const newMember: any = {
       id,
       startNodeId: tempMember.startNodeId,
       endNodeId: tempMember.endNodeId,
       type: tempMember.type
     };
-
     if (tempMember.type === 'spring') {
       newMember.springConstant = Number(tempMember.k);
     } else if (tempMember.type === 'truss') {
       newMember.eModulus = Number(tempMember.e);
       newMember.area = Number(tempMember.a);
     } else {
-      // Beam
       newMember.eModulus = Number(tempMember.e);
       newMember.area = Number(tempMember.a);
       newMember.momentInertia = Number(tempMember.i);
     }
-
     setModel(prev => ({
       ...prev,
-      members: [...prev.members, newMember]
+      members: [...(prev.members ?? []), newMember]
     }));
   };
 
   const addSupport = () => {
     if (!tempSupport.nodeId) return;
-    // Validation handled by logic (replaces existing support at node)
     const id = `s${Date.now()}`;
     setModel(prev => ({
       ...prev,
       supports: [
-        ...prev.supports.filter(s => s.nodeId !== tempSupport.nodeId),
+        ...(prev.supports ?? []).filter(s => s.nodeId !== tempSupport.nodeId),
         { id, nodeId: tempSupport.nodeId, type: tempSupport.type }
       ]
     }));
@@ -194,16 +175,13 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
   const addLoad = () => {
     if (!tempLoad.targetId) return;
     const id = `l${Date.now()}`;
-
     let type: LoadType = LoadType.NODAL_POINT;
-
     if (loadCategory === 'member') {
       type = tempLoad.type === 'distributed' ? LoadType.MEMBER_DISTRIBUTED : LoadType.MEMBER_POINT;
     }
-
     setModel(prev => ({
       ...prev,
-      loads: [...prev.loads, {
+      loads: [...(prev.loads ?? []), {
         id,
         type,
         nodeId: loadCategory === 'node' ? tempLoad.targetId : undefined,
@@ -226,22 +204,25 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
     <button
       onClick={() => setActiveTab(tab)}
       className={`flex-1 py-3 text-xs font-bold uppercase border-b-2 transition-colors ${activeTab === tab
-        ? 'border-cyan-500 text-cyan-400'
-        : 'border-transparent text-slate-400 hover:text-slate-200'
+          ? 'border-cyan-500 text-cyan-400'
+          : 'border-transparent text-slate-400 hover:text-slate-200'
         }`}
     >
       {label}
     </button>
   );
 
-  const getMemberTypeLabel = (type: string) => {
-    // Capitalize first letter
-    return type.charAt(0).toUpperCase() + type.slice(1);
+  const getMemberTypeLabel = (type?: string) => {
+    if (!type) return "Unknown";
+    try {
+      return type.charAt(0).toUpperCase() + type.slice(1);
+    } catch (e) {
+      return "Member";
+    }
   };
 
   return (
     <div className="w-full h-full bg-[#111827] flex flex-col z-10">
-      {/* Mobile Header with Close Button */}
       <div className="md:hidden flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900 flex-shrink-0">
         <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Editor Panel</span>
         <button onClick={onCloseMobile} className="text-slate-400 hover:text-white">
@@ -249,7 +230,6 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex bg-[#1e293b] flex-shrink-0">
         {renderTabButton('nodes', 'Nodes')}
         {renderTabButton('members', 'Members')}
@@ -265,7 +245,6 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
         )}
 
         <div className="flex-1 space-y-6">
-          {/* Nodes Tab */}
           {activeTab === 'nodes' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
               <h3 className="text-cyan-400 font-semibold text-sm uppercase tracking-wider">+ New Node</h3>
@@ -295,13 +274,13 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
               </button>
 
               <div className="mt-6">
-                <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">Nodes ({model.nodes.length})</h4>
+                <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">Nodes ({nodes.length})</h4>
                 <ul className="space-y-2">
-                  {model.nodes.map(node => (
+                  {nodes.map(node => (
                     <li key={node.id} className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700">
                       <span className="text-sm font-mono text-cyan-300">{node.id}</span>
                       <span className="text-xs text-slate-400">({node.x}, {node.y})</span>
-                      <button onClick={() => setModel(p => ({ ...p, nodes: p.nodes.filter(n => n.id !== node.id) }))} className="text-slate-500 hover:text-red-400">
+                      <button onClick={() => setModel(p => ({ ...p, nodes: (p.nodes ?? []).filter(n => n.id !== node.id) }))} className="text-slate-500 hover:text-red-400">
                         <Trash2 size={14} />
                       </button>
                     </li>
@@ -311,11 +290,9 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
             </div>
           )}
 
-          {/* Members Tab */}
           {activeTab === 'members' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
               <h3 className="text-cyan-400 font-semibold text-sm uppercase tracking-wider">+ New Member</h3>
-
               <div className="space-y-1">
                 <label className="text-xs text-slate-400">Type</label>
                 <select
@@ -338,7 +315,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                     className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none"
                   >
                     <option value="">...</option>
-                    {model.nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
+                    {nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1">
@@ -349,14 +326,13 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                     className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none"
                   >
                     <option value="">...</option>
-                    {model.nodes.filter(n => n.id !== tempMember.startNodeId).map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
+                    {nodes.filter(n => n.id !== tempMember.startNodeId).map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
                   </select>
                 </div>
               </div>
 
               <div className="pt-2 border-t border-slate-700">
                 <p className="text-[10px] uppercase font-bold text-slate-500 mb-2">Properties</p>
-
                 {tempMember.type === 'spring' ? (
                   <div className="space-y-1">
                     <label className="text-xs text-slate-400">k (Spring Constant)</label>
@@ -369,7 +345,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-xs text-slate-400">E (Elasticity)</label>
+                      <label className="text-xs text-slate-400">E (Modulus)</label>
                       <SmartInput
                         value={tempMember.e}
                         onChange={val => setTempMember({ ...tempMember, e: val })}
@@ -407,9 +383,9 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
               </button>
 
               <div className="mt-6">
-                <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">Members ({model.members.length})</h4>
+                <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">Members ({members.length})</h4>
                 <ul className="space-y-2">
-                  {model.members.map(mem => (
+                  {members.map(mem => (
                     <li key={mem.id} className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700">
                       <div className="flex flex-col">
                         <span className="text-sm font-mono text-cyan-300">{mem.id} <span className="text-xs text-slate-500">({getMemberTypeLabel(mem.type)})</span></span>
@@ -417,7 +393,7 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                           {mem.startNodeId} <ArrowRight size={10} /> {mem.endNodeId}
                         </span>
                       </div>
-                      <button onClick={() => setModel(p => ({ ...p, members: p.members.filter(m => m.id !== mem.id) }))} className="text-slate-500 hover:text-red-400">
+                      <button onClick={() => setModel(p => ({ ...p, members: (p.members ?? []).filter(m => m.id !== mem.id) }))} className="text-slate-500 hover:text-red-400">
                         <Trash2 size={14} />
                       </button>
                     </li>
@@ -427,11 +403,9 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
             </div>
           )}
 
-          {/* Supports Tab */}
           {activeTab === 'supports' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
               <h3 className="text-cyan-400 font-semibold text-sm uppercase tracking-wider">+ New Support</h3>
-
               <div className="space-y-1">
                 <label className="text-xs text-slate-400">Node</label>
                 <select
@@ -440,10 +414,9 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                   className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none"
                 >
                   <option value="">Select...</option>
-                  {model.nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
+                  {nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
                 </select>
               </div>
-
               <div className="space-y-1">
                 <label className="text-xs text-slate-400">Type</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -458,7 +431,6 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                   ))}
                 </div>
               </div>
-
               <button
                 onClick={addSupport}
                 disabled={!tempSupport.nodeId}
@@ -466,15 +438,14 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
               >
                 <Plus size={16} /> Add Support
               </button>
-
               <div className="mt-6">
-                <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">Supports ({model.supports.length})</h4>
+                <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">Supports ({supports.length})</h4>
                 <ul className="space-y-2">
-                  {model.supports.map(sup => (
+                  {supports.map(sup => (
                     <li key={sup.id} className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700">
                       <span className="text-sm font-mono text-cyan-300">{sup.nodeId}</span>
                       <span className="text-xs text-slate-400 uppercase">{sup.type}</span>
-                      <button onClick={() => setModel(p => ({ ...p, supports: p.supports.filter(s => s.id !== sup.id) }))} className="text-slate-500 hover:text-red-400">
+                      <button onClick={() => setModel(p => ({ ...p, supports: (p.supports ?? []).filter(s => s.id !== sup.id) }))} className="text-slate-500 hover:text-red-400">
                         <Trash2 size={14} />
                       </button>
                     </li>
@@ -484,12 +455,9 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
             </div>
           )}
 
-          {/* Loads Tab */}
           {activeTab === 'loads' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
               <h3 className="text-cyan-400 font-semibold text-sm uppercase tracking-wider">+ New Load</h3>
-
-              {/* Load Category Toggle */}
               <div className="flex bg-slate-800 rounded p-1 mb-4">
                 <button
                   className={`flex-1 text-xs py-1 rounded ${loadCategory === 'node' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}
@@ -504,7 +472,6 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                   Member Load
                 </button>
               </div>
-
               <div className="space-y-1">
                 <label className="text-xs text-slate-400">Target {loadCategory === 'node' ? 'Node' : 'Member'}</label>
                 <select
@@ -514,32 +481,11 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                 >
                   <option value="">Select...</option>
                   {loadCategory === 'node'
-                    ? model.nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)
-                    : model.members.map(m => <option key={m.id} value={m.id}>{m.id}</option>)
+                    ? nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)
+                    : members.map(m => <option key={m.id} value={m.id}>{m.id}</option>)
                   }
                 </select>
               </div>
-
-              {loadCategory === 'member' && (
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-400">Load Distribution</label>
-                  <div className="flex gap-2">
-                    <button
-                      className={`flex-1 py-1 text-xs border rounded ${tempLoad.type === 'point' ? 'bg-cyan-900/40 border-cyan-500 text-cyan-400' : 'border-slate-600 text-slate-400'}`}
-                      onClick={() => setTempLoad({ ...tempLoad, type: 'point' })}
-                    >
-                      Point
-                    </button>
-                    <button
-                      className={`flex-1 py-1 text-xs border rounded ${tempLoad.type === 'distributed' ? 'bg-cyan-900/40 border-cyan-500 text-cyan-400' : 'border-slate-600 text-slate-400'}`}
-                      onClick={() => setTempLoad({ ...tempLoad, type: 'distributed' })}
-                    >
-                      Distributed
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
                   <label className="text-xs text-slate-400">Fx</label>
@@ -566,18 +512,6 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                   />
                 </div>
               </div>
-
-              {loadCategory === 'member' && tempLoad.type === 'point' && (
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-400">Distance from Start</label>
-                  <SmartInput
-                    value={tempLoad.location}
-                    onChange={val => setTempLoad({ ...tempLoad, location: val })}
-                    className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none"
-                  />
-                </div>
-              )}
-
               <button
                 onClick={addLoad}
                 disabled={!tempLoad.targetId}
@@ -585,22 +519,18 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
               >
                 <Plus size={16} /> Add Load
               </button>
-
               <div className="mt-6">
-                <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">Loads ({model.loads.length})</h4>
+                <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">Loads ({loads.length})</h4>
                 <ul className="space-y-2">
-                  {model.loads.map(load => (
+                  {loads.map(load => (
                     <li key={load.id} className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700">
-                      <span className="text-sm font-mono text-cyan-300">
-                        {load.nodeId || load.memberId}
-                        {load.type === LoadType.MEMBER_DISTRIBUTED && ' (UDL)'}
-                      </span>
+                      <span className="text-sm font-mono text-cyan-300">{load.nodeId || load.memberId}</span>
                       <span className="text-xs text-slate-400">
                         {Math.abs(load.magnitudeX) > 0 && `Fx:${load.magnitudeX} `}
                         {Math.abs(load.magnitudeY) > 0 && `Fy:${load.magnitudeY} `}
-                        {load.moment && load.moment !== 0 && `M:${load.moment}`}
+                        {load.moment !== 0 && `M:${load.moment}`}
                       </span>
-                      <button onClick={() => setModel(p => ({ ...p, loads: p.loads.filter(l => l.id !== load.id) }))} className="text-slate-500 hover:text-red-400">
+                      <button onClick={() => setModel(p => ({ ...p, loads: (p.loads ?? []).filter(l => l.id !== load.id) }))} className="text-slate-500 hover:text-red-400">
                         <Trash2 size={14} />
                       </button>
                     </li>
