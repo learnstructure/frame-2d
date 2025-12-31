@@ -63,7 +63,7 @@ const StructureCanvas: React.FC<StructureCanvasProps> = ({ model, analysisResult
     const contentWidth = maxX - minX;
     const contentHeight = maxY - minY;
 
-    const padding = 60;
+    const padding = 100;
     const availableWidth = Math.max(50, width - padding);
     const availableHeight = Math.max(50, height - padding);
 

@@ -80,10 +80,8 @@ export const analyzeStructureWithGroq = async (
       ${devProfile}
       ${modelingAgentInstructions}
 
-      TASK:
-      - If asked to create, modify, or extend a structure, calculate the coordinates and return the JSON.
-      - Be precise with geometry.
-      - Explain your structural decisions.
+      ROLE:
+      Expert structural analyst and generative modeling agent.
       
       ${structuralContext}
     `;
