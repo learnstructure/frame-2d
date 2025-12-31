@@ -117,6 +117,6 @@ export const analyzeStructureWithGroq = async (
 
     } catch (error: any) {
         console.error("Groq Analysis failed:", error);
-        return `Error generating analysis with Groq. ${error.message}`;
+        return `Error generating. ${error.message}`;
     }
 };

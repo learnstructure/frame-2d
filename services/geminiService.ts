@@ -111,6 +111,6 @@ export const analyzeStructureWithAI = async (
     return response.text || "No response text generated.";
   } catch (error) {
     console.error("AI Analysis failed:", error);
-    return "Error generating analysis. Please check your connection.";
+    return "Error generating. Please come back later.";
   }
 };

@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, ArrowRight, AlertCircle, X, Calculator } from 'lucide-react';
-import { StructureModel, SupportType, LoadType, MemberType } from '../frame/types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, ArrowRight, AlertCircle, X, Calculator, Edit2 } from 'lucide-react';
+import { StructureModel, SupportType, LoadType, MemberType, Member } from '../frame/types';
 
 interface SidebarProps {
   model: StructureModel;
@@ -73,6 +73,8 @@ const SmartInput = ({ value, onChange, className }: { value: number; onChange: (
 const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => {
   const [activeTab, setActiveTab] = useState<Tab>('nodes');
   const [error, setError] = useState<string | null>(null);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Safely get arrays from model to prevent crashes if AI sends partial data
   const nodes = model.nodes ?? [];
@@ -123,41 +125,79 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
     }));
   };
 
-  const addMember = () => {
+  const resetMemberForm = () => {
+    setTempMember({
+      startNodeId: '',
+      endNodeId: '',
+      e: 200e6,
+      a: 3e-2,
+      i: 5e-4,
+      k: 1000,
+      type: 'beam' as MemberType
+    });
+    setEditingMemberId(null);
+  };
+
+  const startEditMember = (member: Member) => {
+    setEditingMemberId(member.id);
+    setTempMember({
+      startNodeId: member.startNodeId,
+      endNodeId: member.endNodeId,
+      e: member.eModulus ?? 200e6,
+      a: member.area ?? 3e-2,
+      i: member.momentInertia ?? 5e-4,
+      k: member.springConstant ?? 1000,
+      type: member.type
+    });
+    setActiveTab('members');
+    // Smoothly scroll to top of sidebar to see the edit form
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const addOrUpdateMember = () => {
     if (!tempMember.startNodeId || !tempMember.endNodeId) return;
     if (tempMember.startNodeId === tempMember.endNodeId) {
       showError("Start and end nodes must be different.");
       return;
     }
-    const exists = members.some(m =>
-      (m.startNodeId === tempMember.startNodeId && m.endNodeId === tempMember.endNodeId) ||
-      (m.startNodeId === tempMember.endNodeId && m.endNodeId === tempMember.startNodeId)
-    );
-    if (exists) {
-      showError("A member already connects these two nodes.");
-      return;
+
+    if (!editingMemberId) {
+      const exists = members.some(m =>
+        (m.startNodeId === tempMember.startNodeId && m.endNodeId === tempMember.endNodeId) ||
+        (m.startNodeId === tempMember.endNodeId && m.endNodeId === tempMember.startNodeId)
+      );
+      if (exists) {
+        showError("A member already connects these two nodes.");
+        return;
+      }
     }
-    const id = `m${members.length + 1}`;
-    const newMember: any = {
-      id,
+
+    const newMemberData: any = {
+      id: editingMemberId || `m${members.length + 1}`,
       startNodeId: tempMember.startNodeId,
       endNodeId: tempMember.endNodeId,
       type: tempMember.type
     };
+
     if (tempMember.type === 'spring') {
-      newMember.springConstant = Number(tempMember.k);
+      newMemberData.springConstant = Number(tempMember.k);
     } else if (tempMember.type === 'truss') {
-      newMember.eModulus = Number(tempMember.e);
-      newMember.area = Number(tempMember.a);
+      newMemberData.eModulus = Number(tempMember.e);
+      newMemberData.area = Number(tempMember.a);
     } else {
-      newMember.eModulus = Number(tempMember.e);
-      newMember.area = Number(tempMember.a);
-      newMember.momentInertia = Number(tempMember.i);
+      newMemberData.eModulus = Number(tempMember.e);
+      newMemberData.area = Number(tempMember.a);
+      newMemberData.momentInertia = Number(tempMember.i);
     }
+
     setModel(prev => ({
       ...prev,
-      members: [...(prev.members ?? []), newMember]
+      members: editingMemberId
+        ? (prev.members ?? []).map(m => m.id === editingMemberId ? newMemberData : m)
+        : [...(prev.members ?? []), newMemberData]
     }));
+
+    resetMemberForm();
   };
 
   const addSupport = () => {
@@ -237,7 +277,10 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
         {renderTabButton('loads', 'Loads')}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col relative scrollbar-thin scrollbar-thumb-slate-700">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto p-4 flex flex-col relative scrollbar-thin scrollbar-thumb-slate-700 scroll-smooth"
+      >
         {error && (
           <div className="absolute top-2 left-2 right-2 bg-red-900/90 border border-red-500 text-white p-2 rounded text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-2 z-50 shadow-lg">
             <AlertCircle size={14} /> {error}
@@ -292,7 +335,20 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
 
           {activeTab === 'members' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
-              <h3 className="text-cyan-400 font-semibold text-sm uppercase tracking-wider">+ New Member</h3>
+              <div className="flex justify-between items-center">
+                <h3 className="text-cyan-400 font-semibold text-sm uppercase tracking-wider">
+                  {editingMemberId ? `Edit Member ${editingMemberId}` : '+ New Member'}
+                </h3>
+                {editingMemberId && (
+                  <button
+                    onClick={resetMemberForm}
+                    className="text-xs text-slate-400 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs text-slate-400">Type</label>
                 <select
@@ -375,11 +431,12 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
               </div>
 
               <button
-                onClick={addMember}
+                onClick={addOrUpdateMember}
                 disabled={!tempMember.startNodeId || !tempMember.endNodeId}
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded font-medium flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
               >
-                <Plus size={16} /> Connect
+                {editingMemberId ? <Edit2 size={16} /> : <Plus size={16} />}
+                {editingMemberId ? 'Update Member' : 'Connect'}
               </button>
 
               <div className="mt-6">
@@ -393,9 +450,18 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
                           {mem.startNodeId} <ArrowRight size={10} /> {mem.endNodeId}
                         </span>
                       </div>
-                      <button onClick={() => setModel(p => ({ ...p, members: (p.members ?? []).filter(m => m.id !== mem.id) }))} className="text-slate-500 hover:text-red-400">
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => startEditMember(mem)}
+                          className="text-slate-500 hover:text-cyan-400 transition-colors"
+                          title="Edit member properties"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button onClick={() => setModel(p => ({ ...p, members: (p.members ?? []).filter(m => m.id !== mem.id) }))} className="text-slate-500 hover:text-red-400 transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -582,4 +648,3 @@ const Sidebar: React.FC<SidebarProps> = ({ model, setModel, onCloseMobile }) => 
 };
 
 export default Sidebar;
-
